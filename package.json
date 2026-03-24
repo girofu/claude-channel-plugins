@@ -18,7 +18,15 @@
     "check:build": "tsc --noEmit && npm run build"
   },
   "keywords": ["claude", "claude-code", "discord", "telegram", "bot", "setup", "cli"],
-  "author": "",
+  "author": "girofu",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/girofu/claude-channel-setup.git"
+  },
+  "homepage": "https://github.com/girofu/claude-channel-setup#readme",
+  "bugs": {
+    "url": "https://github.com/girofu/claude-channel-setup/issues"
+  },
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^22.0.0",

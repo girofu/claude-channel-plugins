@@ -1,4 +1,4 @@
-"""Telegram channel 測試"""
+"""Telegram channel tests"""
 
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
@@ -7,7 +7,7 @@ from claude_channel_setup.channels.telegram import validate_telegram_token
 
 class TestValidateTelegramToken:
     @pytest.mark.asyncio
-    async def test_token_有效時回傳_bot_資訊(self):
+    async def test_returns_bot_info_when_token_is_valid(self):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -39,7 +39,7 @@ class TestValidateTelegramToken:
         }
 
     @pytest.mark.asyncio
-    async def test_token_無效時回傳錯誤(self):
+    async def test_returns_error_when_token_is_invalid(self):
         mock_response = MagicMock()
         mock_response.status_code = 401
         mock_response.reason_phrase = "Unauthorized"
@@ -53,10 +53,10 @@ class TestValidateTelegramToken:
 
             result = await validate_telegram_token("bad-token")
 
-        assert result == {"valid": False, "error": "Token 無效 (401 Unauthorized)"}
+        assert result == {"valid": False, "error": "Invalid token (401 Unauthorized)"}
 
     @pytest.mark.asyncio
-    async def test_api_回傳_ok_false_時回傳錯誤(self):
+    async def test_returns_error_when_api_returns_ok_false(self):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"ok": False, "description": "Not Found"}
@@ -70,4 +70,4 @@ class TestValidateTelegramToken:
 
             result = await validate_telegram_token("bad-token")
 
-        assert result == {"valid": False, "error": "Telegram API 錯誤: Not Found"}
+        assert result == {"valid": False, "error": "Telegram API error: Not Found"}

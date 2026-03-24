@@ -1,4 +1,4 @@
-"""Claude Code 整合測試"""
+"""Claude Code integration tests"""
 
 import pytest
 from claude_channel_setup.lib.claude import (
@@ -8,7 +8,7 @@ from claude_channel_setup.lib.claude import (
 
 
 class TestGetPluginInstallCommands:
-    def test_生成_discord_plugin_安裝指令(self):
+    def test_generate_discord_plugin_install_command(self):
         cmds = get_plugin_install_commands("discord")
         assert cmds["install"] == "/plugin install discord@claude-plugins-official"
         assert (
@@ -16,23 +16,23 @@ class TestGetPluginInstallCommands:
             == "/plugin marketplace add anthropics/claude-plugins-official"
         )
 
-    def test_生成_telegram_plugin_安裝指令(self):
+    def test_generate_telegram_plugin_install_command(self):
         cmds = get_plugin_install_commands("telegram")
         assert cmds["install"] == "/plugin install telegram@claude-plugins-official"
 
 
 class TestGetChannelLaunchCommand:
-    def test_單一_channel_的啟動指令(self):
+    def test_launch_command_for_single_channel(self):
         cmd = get_channel_launch_command(["discord"])
         assert cmd == "claude --channels plugin:discord@claude-plugins-official"
 
-    def test_多個_channel_的啟動指令(self):
+    def test_launch_command_for_multiple_channels(self):
         cmd = get_channel_launch_command(["discord", "telegram"])
         assert (
             cmd
             == "claude --channels plugin:discord@claude-plugins-official plugin:telegram@claude-plugins-official"
         )
 
-    def test_空陣列拋出錯誤(self):
-        with pytest.raises(ValueError, match="至少需要一個 channel"):
+    def test_raises_error_for_empty_list(self):
+        with pytest.raises(ValueError, match="At least one channel is required"):
             get_channel_launch_command([])

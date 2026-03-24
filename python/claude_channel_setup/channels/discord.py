@@ -1,4 +1,4 @@
-"""Claude Code Discord Channel 設定模組"""
+"""Claude Code Discord Channel setup module"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 
 import httpx
 
-# Discord Bot 所需的權限
+# Required permissions for Discord Bot
 DISCORD_PERMISSIONS: dict[str, int] = {
     "VIEW_CHANNELS": 1024,
     "SEND_MESSAGES": 2048,
@@ -19,7 +19,7 @@ DISCORD_PERMISSIONS: dict[str, int] = {
 
 
 async def validate_discord_token(token: str) -> dict[str, Any]:
-    """透過 Discord API 驗證 bot token 是否有效"""
+    """Validate bot token via Discord API"""
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -30,7 +30,7 @@ async def validate_discord_token(token: str) -> dict[str, Any]:
         if response.status_code != 200:
             return {
                 "valid": False,
-                "error": f"Token 無效 ({response.status_code} {response.reason_phrase})",
+                "error": f"Invalid token ({response.status_code} {response.reason_phrase})",
             }
 
         data = response.json()
@@ -43,13 +43,13 @@ async def validate_discord_token(token: str) -> dict[str, Any]:
             },
         }
     except Exception as e:
-        return {"valid": False, "error": f"無法連線到 Discord API: {e}"}
+        return {"valid": False, "error": f"Unable to connect to Discord API: {e}"}
 
 
 def generate_invite_url(client_id: str) -> str:
-    """生成包含所需權限的 OAuth2 邀請 URL"""
+    """Generate OAuth2 invite URL with required permissions"""
     if not client_id:
-        raise ValueError("client_id 不可為空")
+        raise ValueError("client_id must not be empty")
 
     permissions = sum(DISCORD_PERMISSIONS.values())
     params = urlencode(

@@ -1,4 +1,4 @@
-"""claude-channel-setup CLI 入口（Python 版）"""
+"""claude-channel-setup CLI entry point (Python version)"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import sys
 from .channels.discord import generate_invite_url, validate_discord_token
 from .channels.telegram import validate_telegram_token
 from .lib.claude import get_channel_launch_command, get_plugin_install_commands
-from .lib.config import save_channel_token
+from .lib.profile import list_profiles, save_profile_config
 
 SUPPORTED_CHANNELS = ["discord", "telegram"]
 
@@ -21,21 +21,21 @@ CHANNEL_CONFIG = {
     "discord": {
         "display_name": "Discord",
         "token_env_key": "DISCORD_BOT_TOKEN",
-        "token_prompt": "貼上你的 Discord Bot Token（從 Developer Portal 取得）: ",
+        "token_prompt": "Paste your Discord Bot Token (from Developer Portal): ",
         "prerequisites": [
-            "在 Discord Developer Portal (https://discord.com/developers/applications) 建立一個新的 Application",
-            '在 Bot 設定中啟用 "Message Content Intent"',
-            "複製 Bot Token（點擊 Reset Token）",
+            "Create a new Application in Discord Developer Portal (https://discord.com/developers/applications)",
+            'Enable "Message Content Intent" in Bot settings',
+            "Copy the Bot Token (click Reset Token)",
         ],
     },
     "telegram": {
         "display_name": "Telegram",
         "token_env_key": "TELEGRAM_BOT_TOKEN",
-        "token_prompt": "貼上你的 Telegram Bot Token（從 BotFather 取得）: ",
+        "token_prompt": "Paste your Telegram Bot Token (from BotFather): ",
         "prerequisites": [
-            "在 Telegram 開啟 BotFather (https://t.me/BotFather)，發送 /newbot 建立新 bot",
-            "設定 bot 的顯示名稱和 username（需以 bot 結尾）",
-            "複製 BotFather 回傳的 Token",
+            "Open BotFather in Telegram (https://t.me/BotFather) and send /newbot to create a new bot",
+            "Set the bot's display name and username (must end with bot)",
+            "Copy the Token returned by BotFather",
         ],
     },
 }
@@ -67,18 +67,18 @@ def confirm(message: str, default: bool = True) -> bool:
 
 
 def select_channels(args: list[str]) -> list[str]:
-    """選擇要設定的 channel"""
-    # CLI 引數直接指定
+    """Select channels to configure"""
+    # Directly specified via CLI arguments
     valid = [a for a in args if a in SUPPORTED_CHANNELS]
     if valid:
         return valid
 
-    print("\n選擇要設定的 channel:")
+    print("\nSelect channels to configure:")
     print("  1. Discord")
     print("  2. Telegram")
-    print("  3. 全部 (Discord + Telegram)")
+    print("  3. All (Discord + Telegram)")
 
-    choice = input("\n請輸入選項 (1/2/3): ").strip()
+    choice = input("\nEnter option (1/2/3): ").strip()
     if choice == "1":
         return ["discord"]
     if choice == "2":
@@ -86,33 +86,49 @@ def select_channels(args: list[str]) -> list[str]:
     if choice == "3":
         return list(SUPPORTED_CHANNELS)
 
-    print_error("無效選項")
+    print_error("Invalid option")
     return []
 
 
-async def setup_channel(channel: str) -> None:
-    """設定單一 channel"""
-    config = CHANNEL_CONFIG[channel]
-    print_title(f"設定 {config['display_name']}")
+def prompt_profile(channel: str) -> str | None:
+    """Prompt the user to select or create a profile for the channel."""
+    existing = list_profiles(channel)
 
-    # 顯示先決條件
-    print("\n📋 先決條件（手動步驟）:")
+    print(f"\nProfile selection for {channel}:")
+    if existing:
+        print(f"  Existing profiles: {', '.join(existing)}")
+    print("  Leave blank to use the default profile (no multi-bot isolation).")
+
+    profile = input("  Profile name (or press Enter for default): ").strip()
+    return profile if profile else None
+
+
+async def setup_channel(channel: str) -> str | None:
+    """Configure a single channel. Returns profile name if set."""
+    config = CHANNEL_CONFIG[channel]
+    print_title(f"Setting up {config['display_name']}")
+
+    # Show prerequisites
+    print("\n📋 Prerequisites (manual steps):")
     for i, step in enumerate(config["prerequisites"], 1):
         print(f"   {i}. {step}")
 
     print()
-    if not confirm("以上步驟都已完成？"):
-        print("已跳過。")
-        return
+    if not confirm("All steps above completed?"):
+        print("Skipped.")
+        return None
 
-    # 取得 token
+    # Select profile
+    profile = prompt_profile(channel)
+
+    # Get token
     token = getpass.getpass(config["token_prompt"])
     if not token:
-        print_error("未輸入 token，跳過此 channel。")
-        return
+        print_error("No token entered, skipping this channel.")
+        return None
 
-    # 驗證 token
-    print("⏳ 驗證 token...")
+    # Validate token
+    print("⏳ Validating token...")
     if channel == "discord":
         result = await validate_discord_token(token)
     else:
@@ -120,58 +136,71 @@ async def setup_channel(channel: str) -> None:
 
     if not result["valid"]:
         print_error(result["error"])
-        return
+        return None
 
     bot = result["bot"]
     if channel == "discord":
-        print_success(f"Token 驗證成功 (bot: {bot['username']}#{bot['discriminator']})")
+        print_success(
+            f"Token validated successfully (bot: {bot['username']}#{bot['discriminator']})"
+        )
     else:
-        print_success(f"Token 驗證成功 (bot: @{bot['username']})")
+        print_success(f"Token validated successfully (bot: @{bot['username']})")
 
-    # Discord: 生成邀請 URL
+    # Discord: generate invite URL
     if channel == "discord":
         invite_url = generate_invite_url(bot["id"])
-        print(f"\n🔗 邀請 URL（包含所有必要權限）:")
+        print(f"\n🔗 Invite URL (includes all required permissions):")
         print(f"   {invite_url}")
 
-        if confirm("是否在瀏覽器中開啟邀請 URL？"):
+        if confirm("Open invite URL in browser?"):
             _open_url(invite_url)
 
-        confirm("Bot 已加入你的 server？")
+        confirm("Bot has joined your server?")
 
-    # 儲存 token
-    save_channel_token(channel, config["token_env_key"], token)
-    print_success(f"Token 已儲存到 ~/.claude/channels/{channel}/.env")
+    # Save token using profile system
+    save_profile_config(channel, profile, token)
+    profile_label = f"{channel}-{profile}" if profile else channel
+    print_success(f"Token saved to ~/.claude/channels/{profile_label}/.env")
 
-    # 顯示 plugin 安裝指令
+    # Show plugin install commands
     cmds = get_plugin_install_commands(channel)
-    print(f"\n📦 Plugin 安裝指令（在 Claude Code 中執行）:")
+    print(f"\n📦 Plugin install commands (run in Claude Code):")
     print(f"   {cmds['install']}")
-    print(f"   如果找不到 plugin，先執行: {cmds['marketplace_add']}")
-    print(f"   安裝後執行: {cmds['reload']}")
+    print(f"   If plugin not found, first run: {cmds['marketplace_add']}")
+    print(f"   After installing, run: {cmds['reload']}")
+
+    return profile
 
 
-def print_next_steps(channels: list[str]) -> None:
-    """顯示後續步驟"""
-    launch_cmd = get_channel_launch_command(channels)
-    names = " + ".join(CHANNEL_CONFIG[ch]["display_name"] for ch in channels)
+def print_next_steps(
+    channels: list[str],
+    profile_map: dict[str, str | None] | None = None,
+) -> None:
+    """Display next steps"""
+    from .lib.profile import get_profile_launch_env
 
-    print_title("設定完成")
-    print("\n📝 後續步驟:\n")
-    print("   1. 在 Claude Code 中安裝 plugin（見上方指令）")
-    print("   2. 重啟 Claude Code:")
-    print(f"      {launch_cmd}")
-    print(f"   3. 在 {names} 中 DM 你的 bot，取得配對碼")
+    profile_map = profile_map or {}
+
+    print_title("Setup complete")
+    print("\n📝 Next steps:\n")
+    print("   1. Install plugin in Claude Code (see commands above)")
+    print("   2. Restart Claude Code:")
 
     for ch in channels:
-        print(f"   4. 執行配對: /{ch}:access pair <code>")
-        print(f"   5. 鎖定存取: /{ch}:access policy allowlist")
+        profile = profile_map.get(ch)
+        env_prefix = get_profile_launch_env(ch, profile)
+        launch_cmd = get_channel_launch_command([ch])
+        full_cmd = f"{env_prefix} {launch_cmd}" if env_prefix else launch_cmd
+        print(f"      {full_cmd}")
 
-    print(f"\n   完整文件: https://code.claude.com/docs/en/channels")
+    print(
+        "   3. Send a message in the configured channel (if requireMention is enabled, @mention the bot), or DM the bot directly"
+    )
+    print(f"\n   Full documentation: https://code.claude.com/docs/en/channels")
 
 
 def _open_url(url: str) -> None:
-    """跨平台開啟 URL"""
+    """Open URL cross-platform"""
     try:
         system = platform.system()
         if system == "Darwin":
@@ -181,40 +210,45 @@ def _open_url(url: str) -> None:
         elif system == "Windows":
             subprocess.run(["cmd", "/c", "start", url], check=True)
     except Exception:
-        print_warning("無法自動開啟瀏覽器，請手動複製 URL。")
+        print_warning(
+            "Unable to open browser automatically, please copy the URL manually."
+        )
 
 
 def main() -> None:
-    """CLI 主入口"""
+    """CLI main entry point"""
     print_title("Claude Channel Setup")
 
-    # 偵測 Claude Code
+    # Detect Claude Code
     if shutil.which("claude"):
-        print_success("Claude Code CLI 已偵測到")
+        print_success("Claude Code CLI detected")
     else:
-        print_warning("未偵測到 Claude Code CLI — 設定仍可繼續")
+        print_warning("Claude Code CLI not detected — setup can still continue")
 
-    # 偵測 Bun
+    # Detect Bun
     if shutil.which("bun"):
-        print_success("Bun runtime 已偵測到")
+        print_success("Bun runtime detected")
     else:
-        print_warning("未偵測到 Bun — Channel plugins 需要 Bun (https://bun.sh)")
-        if not confirm("是否繼續設定？", default=False):
-            print("已取消。請先安裝 Bun: https://bun.sh/docs/installation")
+        print_warning("Bun not detected — Channel plugins require Bun (https://bun.sh)")
+        if not confirm("Continue with setup?", default=False):
+            print(
+                "Cancelled. Please install Bun first: https://bun.sh/docs/installation"
+            )
             sys.exit(0)
 
-    # 選擇 channel
+    # Select channels
     channels = select_channels(sys.argv[1:])
     if not channels:
-        print("未選擇任何 channel，結束。")
+        print("No channels selected, exiting.")
         sys.exit(0)
 
-    # 逐一設定
+    # Configure each channel
+    profile_map: dict[str, str | None] = {}
     for ch in channels:
-        asyncio.run(setup_channel(ch))
+        profile_map[ch] = asyncio.run(setup_channel(ch))
 
-    # 後續步驟
-    print_next_steps(channels)
+    # Next steps
+    print_next_steps(channels, profile_map)
 
 
 if __name__ == "__main__":

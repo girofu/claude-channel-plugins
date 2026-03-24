@@ -130,16 +130,28 @@ This CLI automates that:
 
 **Without this step**, the bot silently ignores all server channel messages — only DMs work.
 
-### Multi-Session Setup
+### Multi-Session Setup (Profiles)
 
-To map different Discord channels to different Claude Code sessions, create separate bots:
+To map different Discord channels to different Claude Code sessions, use **profiles**:
 
 ```bash
-# Bot A → frontend project
-claude-channel-setup discord    # token-A, channels: #claude-frontend
+# Set up Bot A with profile "frontend"
+npx claude-channel-setup discord
+# → Create a separate profile? Yes
+# → Profile name: frontend
 
-# Bot B → backend project
-claude-channel-setup discord    # token-B, channels: #claude-backend
+# Set up Bot B with profile "backend"
+npx claude-channel-setup discord
+# → Create a separate profile? Yes
+# → Profile name: backend
+```
+
+This creates isolated directories:
+
+```
+~/.claude/channels/
+├── discord-frontend/    # Bot A: token + access.json
+└── discord-backend/     # Bot B: token + access.json
 ```
 
 Then launch each session separately:
@@ -147,11 +159,11 @@ Then launch each session separately:
 ```bash
 # Terminal 1
 cd ~/projects/frontend
-DISCORD_BOT_TOKEN=token-A claude --channels plugin:discord@claude-plugins-official
+DISCORD_STATE_DIR=~/.claude/channels/discord-frontend claude --channels plugin:discord@claude-plugins-official
 
 # Terminal 2
 cd ~/projects/backend
-DISCORD_BOT_TOKEN=token-B claude --channels plugin:discord@claude-plugins-official
+DISCORD_STATE_DIR=~/.claude/channels/discord-backend claude --channels plugin:discord@claude-plugins-official
 ```
 
 Each bot is fully isolated — different WebSocket connections, different processes, different working directories.
@@ -202,7 +214,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development guide.
 │   └── lib/profile.ts            # Multi-bot profile management (STATE_DIR)
 ├── python/                       # Python mirror
 │   └── claude_channel_setup/     # Same structure, same functionality
-└── tests/                        # 77 Node.js + Python tests
+└── tests/                        # Node.js + Python tests
 ```
 
 ## Related

@@ -1,4 +1,4 @@
-"""Discord channel 測試"""
+"""Discord channel tests"""
 
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
@@ -10,7 +10,7 @@ from claude_channel_setup.channels.discord import (
 
 
 class TestDiscordPermissions:
-    def test_包含所有必要權限(self):
+    def test_contains_all_required_permissions(self):
         assert DISCORD_PERMISSIONS == {
             "VIEW_CHANNELS": 1024,
             "SEND_MESSAGES": 2048,
@@ -20,14 +20,14 @@ class TestDiscordPermissions:
             "ADD_REACTIONS": 64,
         }
 
-    def test_計算出正確的權限_integer(self):
+    def test_calculates_correct_permission_integer(self):
         total = sum(DISCORD_PERMISSIONS.values())
         assert total == 274878008384
 
 
 class TestValidateDiscordToken:
     @pytest.mark.asyncio
-    async def test_token_有效時回傳_bot_資訊(self):
+    async def test_returns_bot_info_when_token_is_valid(self):
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -51,7 +51,7 @@ class TestValidateDiscordToken:
         }
 
     @pytest.mark.asyncio
-    async def test_token_無效時回傳錯誤(self):
+    async def test_returns_error_when_token_is_invalid(self):
         mock_response = MagicMock()
         mock_response.status_code = 401
         mock_response.reason_phrase = "Unauthorized"
@@ -65,10 +65,10 @@ class TestValidateDiscordToken:
 
             result = await validate_discord_token("bad-token")
 
-        assert result == {"valid": False, "error": "Token 無效 (401 Unauthorized)"}
+        assert result == {"valid": False, "error": "Invalid token (401 Unauthorized)"}
 
     @pytest.mark.asyncio
-    async def test_網路錯誤時回傳錯誤(self):
+    async def test_returns_error_on_network_failure(self):
         with patch("claude_channel_setup.channels.discord.httpx") as mock_httpx:
             mock_client = AsyncMock()
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -78,17 +78,20 @@ class TestValidateDiscordToken:
 
             result = await validate_discord_token("any-token")
 
-        assert result == {"valid": False, "error": "無法連線到 Discord API: Network error"}
+        assert result == {
+            "valid": False,
+            "error": "Unable to connect to Discord API: Network error",
+        }
 
 
 class TestGenerateInviteUrl:
-    def test_生成包含正確權限和_scope_的_URL(self):
+    def test_generates_url_with_correct_permissions_and_scope(self):
         url = generate_invite_url("123456789")
         assert "discord.com/oauth2/authorize" in url
         assert "client_id=123456789" in url
         assert "scope=bot" in url
         assert "permissions=274878008384" in url
 
-    def test_空的_client_id_會拋出錯誤(self):
-        with pytest.raises(ValueError, match="client_id 不可為空"):
+    def test_raises_error_for_empty_client_id(self):
+        with pytest.raises(ValueError, match="client_id must not be empty"):
             generate_invite_url("")

@@ -1,4 +1,4 @@
-"""Claude Code Channel 設定檔管理"""
+"""Claude Code Channel configuration management"""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def get_channel_config_dir(channel: str, base_dir: str | None = None) -> str:
-    """取得 channel 設定目錄路徑"""
+    """Get channel configuration directory path"""
     base = base_dir or os.path.join(Path.home(), ".claude")
     return os.path.join(base, "channels", channel)
 
@@ -15,7 +15,7 @@ def get_channel_config_dir(channel: str, base_dir: str | None = None) -> str:
 def save_channel_token(
     channel: str, key: str, token: str, base_dir: str | None = None
 ) -> None:
-    """將 token 儲存到 channel 的 .env 檔案"""
+    """Save token to channel's .env file"""
     config_dir = get_channel_config_dir(channel, base_dir)
     os.makedirs(config_dir, exist_ok=True)
     env_path = os.path.join(config_dir, ".env")
@@ -26,7 +26,7 @@ def save_channel_token(
 def load_channel_token(
     channel: str, key: str, base_dir: str | None = None
 ) -> str | None:
-    """從 channel 的 .env 檔案讀取 token"""
+    """Load token from channel's .env file"""
     config_dir = get_channel_config_dir(channel, base_dir)
     env_path = os.path.join(config_dir, ".env")
 

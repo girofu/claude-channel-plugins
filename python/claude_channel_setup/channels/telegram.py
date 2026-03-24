@@ -1,4 +1,4 @@
-"""Claude Code Telegram Channel 設定模組"""
+"""Claude Code Telegram Channel setup module"""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import httpx
 
 
 async def validate_telegram_token(token: str) -> dict[str, Any]:
-    """透過 Telegram Bot API 驗證 token 是否有效"""
+    """Validate token via Telegram Bot API"""
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
@@ -18,13 +18,13 @@ async def validate_telegram_token(token: str) -> dict[str, Any]:
         if response.status_code != 200:
             return {
                 "valid": False,
-                "error": f"Token 無效 ({response.status_code} {response.reason_phrase})",
+                "error": f"Invalid token ({response.status_code} {response.reason_phrase})",
             }
 
         data = response.json()
         if not data.get("ok"):
             description = data.get("description", "Unknown error")
-            return {"valid": False, "error": f"Telegram API 錯誤: {description}"}
+            return {"valid": False, "error": f"Telegram API error: {description}"}
 
         bot = data["result"]
         return {
@@ -36,4 +36,4 @@ async def validate_telegram_token(token: str) -> dict[str, Any]:
             },
         }
     except Exception as e:
-        return {"valid": False, "error": f"無法連線到 Telegram API: {e}"}
+        return {"valid": False, "error": f"Unable to connect to Telegram API: {e}"}

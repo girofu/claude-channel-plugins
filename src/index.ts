@@ -17,15 +17,11 @@ import {
   fetchGuildChannelsWithCategories,
 } from "./channels/discord.js";
 import { validateTelegramToken } from "./channels/telegram.js";
-import { saveChannelToken, loadChannelToken } from "./lib/config.js";
 import {
-  loadAccessConfig,
-  saveAccessConfig,
   loadAccessConfigFromDir,
   saveAccessConfigToDir,
   addGroup,
   setDmPolicy,
-  addAllowedUser,
 } from "./lib/access.js";
 import {
   getProfileDir,
