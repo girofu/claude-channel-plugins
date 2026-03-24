@@ -34,3 +34,9 @@ htmlcov/
 
 # Claude Code reports
 reports/
+
+# Claude Code local config
+.claude/
+
+# Maintainer local state
+.github/maintainer/
