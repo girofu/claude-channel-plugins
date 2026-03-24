@@ -17,40 +17,36 @@ Reduces the 7-step manual setup process to a single interactive command.
 
 **Still manual:** Creating the bot in Discord Developer Portal / Telegram BotFather (no public API exists for this).
 
-## Install
+## Quick Start
 
-### Node.js (recommended)
+No installation required — just run:
 
 ```bash
 npx claude-channel-setup
 ```
 
-### Python
+Or specify channel(s) directly:
+
+```bash
+npx claude-channel-setup discord
+npx claude-channel-setup telegram
+npx claude-channel-setup discord telegram
+```
+
+### Alternative: Python
 
 ```bash
 pip install claude-channel-setup
 claude-channel-setup
 ```
 
-### From source
+### Alternative: From source
 
 ```bash
 git clone https://github.com/girofu/claude-channel-setup.git
 cd claude-channel-setup
 npm install && npm run build
 node dist/index.js
-```
-
-## Usage
-
-```bash
-# Interactive — choose Discord, Telegram, or both
-npx claude-channel-setup
-
-# Direct — specify channel(s)
-npx claude-channel-setup discord
-npx claude-channel-setup telegram
-npx claude-channel-setup discord telegram
 ```
 
 ### Example Session
@@ -87,9 +83,12 @@ npx claude-channel-setup discord telegram
 ✅ Found 2 servers
 ? Select server: My Dev Server
 ✅ Found 5 text channels
-? Add #general? No
-? Add #claude-dev? Yes
-? Add #claude-ops? Yes
+? Select channels to enable (space to toggle, enter to confirm):
+  ◻ #general          [General]
+  ◼ #claude-dev       [Development]
+  ◼ #claude-ops       [Operations]
+  ◻ #random           [General]
+  ◻ #voice-chat-text  [Voice]
 ? Require @mention to respond? (recommended for shared channels) Yes
 ? Current DM policy is pairing, switch to allowlist? Yes
 ✅ Configured 2 channels: #claude-dev, #claude-ops
@@ -199,10 +198,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development guide.
 │   ├── lib/config.ts             # Token storage (~/.claude/channels/)
 │   ├── lib/claude.ts             # Claude Code CLI detection + commands
 │   ├── commands/setup.ts         # Channel metadata (names, prerequisites)
-│   └── utils/ui.ts               # CLI formatting (colors, icons)
+│   ├── utils/ui.ts               # CLI formatting (colors, icons)
+│   └── lib/profile.ts            # Multi-bot profile management (STATE_DIR)
 ├── python/                       # Python mirror
 │   └── claude_channel_setup/     # Same structure, same functionality
-└── tests/                        # 59 Node.js + Python tests
+└── tests/                        # 77 Node.js + Python tests
 ```
 
 ## Related
