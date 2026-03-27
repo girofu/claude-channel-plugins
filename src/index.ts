@@ -22,6 +22,8 @@ import {
   saveAccessConfigToDir,
   addGroup,
   setDmPolicy,
+  addAllowedUser,
+  setMentionPatterns,
 } from "./lib/access.js";
 import {
   getProfileDir,
@@ -29,17 +31,46 @@ import {
   saveProfileConfig,
   getProfileLaunchEnv,
 } from "./lib/profile.js";
-import { detectClaudeCode, getPluginInstallCommands, getChannelLaunchCommand } from "./lib/claude.js";
+import {
+  detectClaudeCode,
+  getClaudeCodeInfo,
+  isVersionSufficient,
+  checkFeatureSupport,
+  getPluginInstallCommands,
+  getChannelLaunchCommand,
+  writeToolPermissions,
+  MINIMUM_CHANNEL_VERSION,
+  MINIMUM_PERMISSION_RELAY_VERSION,
+} from "./lib/claude.js";
 import * as ui from "./utils/ui.js";
+
+// 版本常數從 claude.ts 匯入
+
+// 記錄每個 channel 的 allowed users 設定方式
+type AllowedUsersMode = "pair" | "direct" | "skip";
 
 async function main() {
   console.log(ui.title("Claude Channel Setup"));
 
-  // 1. Detect Claude Code
+  // 1. Detect Claude Code + version check
   const spinner = ora("Detecting Claude Code CLI...").start();
-  const hasClaude = await detectClaudeCode();
-  if (hasClaude) {
-    spinner.succeed("Claude Code CLI detected");
+  const claudeInfo = await getClaudeCodeInfo();
+  const features = checkFeatureSupport(claudeInfo.version);
+  if (claudeInfo.installed) {
+    if (claudeInfo.version) {
+      if (features.channels) {
+        const relayNote = features.permissionRelay
+          ? " + Permission Relay"
+          : ` — upgrade to v${MINIMUM_PERMISSION_RELAY_VERSION}+ for Permission Relay`;
+        spinner.succeed(`Claude Code CLI detected (v${claudeInfo.version})${relayNote}`);
+      } else {
+        spinner.warn(
+          `Claude Code CLI detected (v${claudeInfo.version}) — channels require v${MINIMUM_CHANNEL_VERSION}+, please upgrade`,
+        );
+      }
+    } else {
+      spinner.succeed("Claude Code CLI detected");
+    }
   } else {
     spinner.warn("Claude Code CLI not detected — setup can continue, but plugin installation must be done manually");
   }
@@ -68,14 +99,34 @@ async function main() {
     process.exit(0);
   }
 
-  // 4. Set up each channel and collect profile info
+  // 4. Set up each channel and collect profile info + allowed users mode
   const profileMap: Record<string, string | undefined> = {};
+  const allowedModeMap: Record<string, AllowedUsersMode> = {};
   for (const channel of selectedChannels) {
-    profileMap[channel] = await setupChannel(channel);
+    const result = await setupChannel(channel);
+    profileMap[channel] = result?.profileName;
+    allowedModeMap[channel] = result?.allowedUsersMode ?? "skip";
   }
 
-  // 5. Display final instructions
-  printNextSteps(selectedChannels, profileMap);
+  // 5. Auto-allow tool permissions
+  const wantAutoAllow = await confirm({
+    message: "Auto-allow channel bot tools? (so you don't need terminal approval for each message)",
+    default: true,
+  });
+  if (wantAutoAllow) {
+    const permSpinner = ora("Writing tool permissions...").start();
+    try {
+      writeToolPermissions(selectedChannels);
+      permSpinner.succeed("Tool permissions added to ~/.claude/settings.json");
+    } catch (err) {
+      permSpinner.fail(
+        `Failed to write tool permissions: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  // 6. Display final instructions
+  printNextSteps(selectedChannels, profileMap, allowedModeMap);
 }
 
 async function detectBun(): Promise<boolean> {
@@ -115,7 +166,12 @@ async function selectChannels(): Promise<ChannelType[]> {
   return [channel as ChannelType];
 }
 
-async function setupChannel(channel: ChannelType): Promise<string | undefined> {
+interface SetupResult {
+  profileName: string | undefined;
+  allowedUsersMode: AllowedUsersMode;
+}
+
+async function setupChannel(channel: ChannelType): Promise<SetupResult | undefined> {
   const displayName = getChannelDisplayName(channel);
   console.log(ui.title(`Setting up ${displayName}`));
 
@@ -202,10 +258,16 @@ async function setupChannel(channel: ChannelType): Promise<string | undefined> {
     }
 
     await confirm({ message: "Bot has joined your server?", default: true });
-
-    // Discord: set up Server Channels (Groups)
-    await setupDiscordGroups(token, channel, profileName);
   }
+
+  // Set up Server Channels (Groups) — Discord only
+  const accessDir = getProfileDir(channel, profileName);
+  if (channel === "discord") {
+    await setupDiscordGroups(token, channel, profileName, botId);
+  }
+
+  // Set up Allowed Users (DM access) — 兩種方式
+  const allowedUsersMode = await setupAllowedUsers(channel, accessDir);
 
   // Save token (using profile system)
   const saveSpinner = ora("Saving configuration...").start();
@@ -224,15 +286,96 @@ async function setupChannel(channel: ChannelType): Promise<string | undefined> {
   console.log(ui.dim(`   If plugin not found, run first: ${cmds.marketplaceAdd}`));
   console.log(ui.dim(`   After installation, run: ${cmds.reload}`));
 
-  return profileName;
+  return { profileName, allowedUsersMode };
+}
+
+/** 設定 DM 允許的使用者 — 兩種方式 */
+async function setupAllowedUsers(
+  channel: ChannelType,
+  accessDir: string,
+): Promise<AllowedUsersMode> {
+  const displayName = getChannelDisplayName(channel);
+
+  const mode = await select({
+    message: "How would you like to add allowed DM users?",
+    default: "pair",
+    choices: [
+      {
+        name: `Pair via DM (easy — DM the bot to get a pairing code)`,
+        value: "pair" as const,
+      },
+      {
+        name: "Enter User ID directly (for advanced users or bulk add)",
+        value: "direct" as const,
+      },
+      {
+        name: "Skip for now",
+        value: "skip" as const,
+      },
+    ],
+  });
+
+  let config = loadAccessConfigFromDir(accessDir);
+
+  if (mode === "pair") {
+    // 保持預設的 pairing 模式
+    config = setDmPolicy(config, "pairing");
+    saveAccessConfigToDir(accessDir, config);
+    console.log(ui.success("DM policy set to pairing — DM the bot to get a pairing code after starting"));
+    return "pair";
+  }
+
+  if (mode === "direct") {
+    // 切換到 allowlist 模式，讓使用者輸入 ID
+    config = setDmPolicy(config, "allowlist");
+
+    const idHint = channel === "discord"
+      ? "(Discord: Settings → Advanced → Developer Mode → Right-click your name → Copy User ID)"
+      : "(Telegram: Use @userinfobot or forward a message to @JsonDumpBot to get your user ID)";
+
+    console.log(ui.dim(`   ${idHint}`));
+
+    let addMore = true;
+    while (addMore) {
+      const ids = await input({
+        message: `Enter ${displayName} User ID(s) (comma-separated):`,
+        validate: (v) => {
+          if (!v.trim()) return "Please enter at least one ID";
+          const parts = v.split(",").map((s) => s.trim());
+          if (parts.some((p) => !/^\d+$/.test(p))) {
+            return "User IDs should be numeric";
+          }
+          return true;
+        },
+      });
+
+      const idList = ids.split(",").map((s) => s.trim()).filter(Boolean);
+      for (const id of idList) {
+        config = addAllowedUser(config, id);
+      }
+      console.log(ui.success(`Added ${idList.length} user(s) to allowlist`));
+
+      addMore = await confirm({
+        message: "Add more users?",
+        default: false,
+      });
+    }
+
+    saveAccessConfigToDir(accessDir, config);
+    return "direct";
+  }
+
+  // skip — 保持 pairing 模式（安全預設）
+  config = setDmPolicy(config, "pairing");
+  saveAccessConfigToDir(accessDir, config);
+  return "skip";
 }
 
 function printNextSteps(
   channels: ChannelType[],
   profileMap: Record<string, string | undefined> = {},
+  allowedModeMap: Record<string, AllowedUsersMode> = {},
 ): void {
-  const channelNames = channels.map(getChannelDisplayName).join(" + ");
-
   console.log(ui.title("Setup Complete"));
   console.log(`${ui.icons.memo} Next steps:\n`);
   console.log(`   1. Install the plugin in Claude Code (see above)`);
@@ -246,7 +389,39 @@ function printNextSteps(
     console.log(`      ${ui.code(fullCmd)}`);
   }
 
-  console.log(`   3. Send a message in the configured channel (if requireMention is enabled, @mention the bot), or DM the bot directly`);
+  // 根據 allowed users mode 顯示不同指引
+  let stepNum = 3;
+  const hasPairingChannel = channels.some((ch) => allowedModeMap[ch] === "pair" || allowedModeMap[ch] === "skip");
+
+  if (hasPairingChannel) {
+    const pairingChannels = channels.filter((ch) => allowedModeMap[ch] === "pair" || allowedModeMap[ch] === "skip");
+    for (const ch of pairingChannels) {
+      const displayName = getChannelDisplayName(ch);
+      console.log(`   ${stepNum}. DM the bot on ${displayName} — it will reply with a pairing code`);
+      stepNum++;
+      console.log(`   ${stepNum}. In Claude Code, run: ${ui.code(`/${ch}:access pair <code>`)}`);
+      stepNum++;
+      console.log(`   ${stepNum}. Lock down access: ${ui.code(`/${ch}:access policy allowlist`)}`);
+      stepNum++;
+    }
+  }
+
+  const hasDirectChannel = channels.some((ch) => allowedModeMap[ch] === "direct");
+  if (hasDirectChannel) {
+    console.log(`   ${stepNum}. Send a message in the configured channel or DM the bot`);
+    stepNum++;
+  }
+
+  // Enterprise 提示
+  console.log(`\n   ${ui.icons.warning} Team/Enterprise users: ensure channelsEnabled is enabled by your admin`);
+  console.log(ui.dim("      (claude.ai → Admin settings → Claude Code → Channels)"));
+
+  // Permission Relay 提示
+  console.log(`\n   ${ui.icons.info} Permission Relay (v${MINIMUM_PERMISSION_RELAY_VERSION}+): approve tool use from your phone`);
+  console.log(ui.dim("      When Claude needs approval, it sends a prompt to your DM."));
+  console.log(ui.dim('      Reply "yes <code>" or "no <code>" to approve/deny remotely.'));
+  console.log(ui.dim("      Both terminal and remote work — first answer wins."));
+  console.log(ui.dim("      Docs: https://code.claude.com/docs/en/channels-reference#relay-permission-prompts"));
 
   console.log(`\n${ui.dim("Full documentation: https://code.claude.com/docs/en/channels")}`);
 }
@@ -254,7 +429,8 @@ function printNextSteps(
 async function setupDiscordGroups(
   token: string,
   channel: ChannelType,
-  profileName?: string,
+  profileName: string | undefined,
+  botId: string,
 ): Promise<void> {
   const wantGroups = await confirm({
     message: "Set up Server Channels? (let the bot respond in specific channels, not just DMs)",
@@ -339,27 +515,15 @@ async function setupDiscordGroups(
   });
 
   // Write access.json (in profile mode, write to profile directory)
-  const profileDir = profileName ? getProfileDir(channel, profileName) : undefined;
-  // If using a profile, the baseDir needs to be adjusted to two levels above the profile directory
-  // because loadAccessConfig automatically appends channels/<channel>/
-  // while the profile directory is <base>/channels/<channel>-<profile>/
-  // so operating directly on the full access.json path is more reliable
-  const accessDir = profileDir ?? getProfileDir(channel, undefined);
+  const accessDir = profileName ? getProfileDir(channel, profileName) : getProfileDir(channel, undefined);
   let config = loadAccessConfigFromDir(accessDir);
   for (const chId of selectedChannels) {
     config = addGroup(config, chId, { requireMention });
   }
 
-  // Also ensure dmPolicy is allowlist (to avoid issues with pairing getting stuck)
-  if (config.dmPolicy === "pairing") {
-    const switchPolicy = await confirm({
-      message:
-        "Current DM policy is pairing (requires pairing). Switch to allowlist (direct allow)?",
-      default: true,
-    });
-    if (switchPolicy) {
-      config = setDmPolicy(config, "allowlist");
-    }
+  // 設定 mentionPatterns（官方 plugin 用來偵測 @mention）
+  if (requireMention) {
+    config = setMentionPatterns(config, [`<@${botId}>`]);
   }
 
   saveAccessConfigToDir(accessDir, config);

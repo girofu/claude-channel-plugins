@@ -9,12 +9,40 @@ export interface GroupPolicy {
   allowFrom?: string[];
 }
 
+export interface PendingEntry {
+  senderId: string;
+  chatId: string;
+  createdAt: number;
+  expiresAt: number;
+  replies: number;
+}
+
 export interface AccessConfig {
   dmPolicy: "pairing" | "allowlist" | "disabled";
   allowFrom: string[];
   groups: Record<string, GroupPolicy>;
-  pending: Record<string, unknown>;
+  pending: Record<string, PendingEntry>;
+  mentionPatterns?: string[];
+  userLabels?: Record<string, string>;
+  // 以下為官方 plugin 的 delivery/UX 設定欄位
+  ackReaction?: string;
+  replyToMode?: "off" | "first" | "all";
+  textChunkLimit?: number;
+  chunkMode?: "length" | "newline";
 }
+
+export interface PendingListEntry {
+  code: string;
+  senderId: string;
+  chatId: string;
+  createdAt: number;
+  expiresAt: number;
+  replies: number;
+}
+
+export type ApprovePairingResult =
+  | { success: true; config: AccessConfig; senderId: string; chatId: string }
+  | { success: false; error: string };
 
 export interface GroupListEntry {
   channelId: string;
@@ -88,11 +116,16 @@ export function addGroup(
   channelId: string,
   policy: GroupPolicy,
 ): AccessConfig {
+  // 官方 plugin 預期每個 group 都有 allowFrom 欄位
+  const normalizedPolicy: GroupPolicy = {
+    requireMention: policy.requireMention,
+    allowFrom: policy.allowFrom ?? [],
+  };
   return {
     ...config,
     groups: {
       ...config.groups,
-      [channelId]: policy,
+      [channelId]: normalizedPolicy,
     },
   };
 }
@@ -126,6 +159,77 @@ export function setDmPolicy(
   return { ...config, dmPolicy: policy };
 }
 
+/** Set mention patterns (e.g., ["@mybot"]) */
+export function setMentionPatterns(
+  config: AccessConfig,
+  patterns: string[],
+): AccessConfig {
+  return { ...config, mentionPatterns: patterns };
+}
+
+/** Approve a pending pairing code (official plugin pair <code> flow) */
+export function approvePairing(
+  config: AccessConfig,
+  code: string,
+): ApprovePairingResult {
+  const entry = config.pending[code];
+  if (!entry) {
+    return { success: false, error: `Pairing code "${code}" not found` };
+  }
+  if (entry.expiresAt < Date.now()) {
+    return { success: false, error: `Pairing code "${code}" has expired` };
+  }
+
+  const { senderId, chatId } = entry;
+
+  // 加入 allowFrom（去重）
+  const allowFrom = config.allowFrom.includes(senderId)
+    ? config.allowFrom
+    : [...config.allowFrom, senderId];
+
+  // 刪除 pending entry
+  const { [code]: _, ...remainingPending } = config.pending;
+
+  return {
+    success: true,
+    config: { ...config, allowFrom, pending: remainingPending },
+    senderId,
+    chatId,
+  };
+}
+
+/** Deny a pending pairing code */
+export function denyPairing(
+  config: AccessConfig,
+  code: string,
+): AccessConfig {
+  const { [code]: _, ...remainingPending } = config.pending;
+  return { ...config, pending: remainingPending };
+}
+
+/** List all pending pairing entries */
+export function listPending(config: AccessConfig): PendingListEntry[] {
+  return Object.entries(config.pending).map(([code, entry]) => ({
+    code,
+    senderId: entry.senderId,
+    chatId: entry.chatId,
+    createdAt: entry.createdAt,
+    expiresAt: entry.expiresAt,
+    replies: entry.replies,
+  }));
+}
+
+/** Write the approved file (channel server polls this to send "you're in") */
+export function writeApprovedFile(
+  channelDir: string,
+  senderId: string,
+  chatId: string,
+): void {
+  const approvedDir = path.join(channelDir, "approved");
+  fs.mkdirSync(approvedDir, { recursive: true });
+  fs.writeFileSync(path.join(approvedDir, senderId), chatId, "utf-8");
+}
+
 /** Add a user to the DM allowlist */
 export function addAllowedUser(
   config: AccessConfig,
@@ -137,5 +241,24 @@ export function addAllowedUser(
   return {
     ...config,
     allowFrom: [...config.allowFrom, userId],
+  };
+}
+
+/** Add a user to the DM allowlist with a display name label */
+export function addAllowedUserWithLabel(
+  config: AccessConfig,
+  userId: string,
+  label: string,
+): AccessConfig {
+  const allowFrom = config.allowFrom.includes(userId)
+    ? config.allowFrom
+    : [...config.allowFrom, userId];
+  return {
+    ...config,
+    allowFrom,
+    userLabels: {
+      ...config.userLabels,
+      [userId]: label,
+    },
   };
 }

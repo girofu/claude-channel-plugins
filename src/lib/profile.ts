@@ -53,6 +53,8 @@ export function saveProfileConfig(
 
   const envPath = path.join(dir, ".env");
   fs.writeFileSync(envPath, lines.join("\n") + "\n", "utf-8");
+  // 官方 plugin 要求 chmod 600 保護 token
+  fs.chmodSync(envPath, 0o600);
 }
 
 /** Load a profile's configuration */
