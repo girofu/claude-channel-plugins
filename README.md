@@ -6,18 +6,18 @@ Marketplace for [Claude Code](https://code.claude.com) channel plugins — setup
 
 ```bash
 # Add the marketplace
-/plugin marketplace add girofu/claude-channel-plugins
+claude plugin marketplace add girofu/claude-channel-plugins
 
 # Install the plugin
-/plugin install channel-setup@claude-channel-plugins
+claude plugin install channel-setup@claude-channel-plugins
 ```
 
 For local development:
 
 ```bash
 git clone https://github.com/girofu/claude-channel-plugins.git
-/plugin marketplace add ./claude-channel-plugins
-/plugin install channel-setup@claude-channel-plugins
+claude plugin marketplace add ./claude-channel-plugins
+claude plugin install channel-setup@claude-channel-plugins
 ```
 
 ## Skills
