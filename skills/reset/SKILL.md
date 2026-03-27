@@ -22,7 +22,7 @@ Reset a channel's configuration. Automatically backs up before deleting.
 ### 1. List Available Channels
 
 ```bash
-ls -d ~/.claude/channels/discord* ~/.claude/channels/telegram* 2>/dev/null
+ls -d ~/.claude/channels/discord* ~/.claude/channels/telegram*
 ```
 
 If nothing found: "No channels configured. Nothing to reset."
@@ -58,8 +58,8 @@ mkdir -p ~/.claude/channels/<channel>/backup-$(date +%Y%m%d-%H%M%S)
 ```
 
 ```bash
-cp ~/.claude/channels/<channel>/.env ~/.claude/channels/<channel>/backup-<timestamp>/ 2>/dev/null
-cp ~/.claude/channels/<channel>/access.json ~/.claude/channels/<channel>/backup-<timestamp>/ 2>/dev/null
+cp ~/.claude/channels/<channel>/.env ~/.claude/channels/<channel>/backup-<timestamp>/
+cp ~/.claude/channels/<channel>/access.json ~/.claude/channels/<channel>/backup-<timestamp>/
 ```
 
 Tell the user: "Backup saved to ~/.claude/channels/<channel>/backup-<timestamp>/"

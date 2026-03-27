@@ -36,7 +36,7 @@ Never call external scripts.
 
 1. Check for existing channel configurations:
    ```bash
-   ls -la ~/.claude/channels/ 2>/dev/null
+   ls -la ~/.claude/channels/
    ```
    Scan for `discord`, `discord-*` directories. If profiles exist, list them:
    > "Found existing profiles: default, frontend, backend"
@@ -230,7 +230,7 @@ Write the merged object to `<profile_dir>/access.json`.
 
 Backup settings.json first:
 ```bash
-cp ~/.claude/settings.json ~/.claude/settings.json.bak 2>/dev/null
+cp ~/.claude/settings.json ~/.claude/settings.json.bak
 ```
 
 Read `~/.claude/settings.json`. If it doesn't exist, start with `{}`.

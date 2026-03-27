@@ -18,7 +18,7 @@ Read and display the current state of all configured channels. This is read-only
 
 1. **List configured channels:**
    ```bash
-   ls -d ~/.claude/channels/discord* ~/.claude/channels/telegram* 2>/dev/null
+   ls -d ~/.claude/channels/discord* ~/.claude/channels/telegram*
    ```
 
    If nothing found: "No channels configured. Run `/channel-setup:setup` to get started."

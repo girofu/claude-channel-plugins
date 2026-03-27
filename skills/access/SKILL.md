@@ -31,7 +31,7 @@ Arguments passed: `$ARGUMENTS`
 Before any operation, discover all channel profiles:
 
 ```bash
-ls -d ~/.claude/channels/discord* ~/.claude/channels/telegram* 2>/dev/null
+ls -d ~/.claude/channels/discord* ~/.claude/channels/telegram*
 ```
 
 Build a profile map:

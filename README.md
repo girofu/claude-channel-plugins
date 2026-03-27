@@ -1,6 +1,6 @@
 # claude-channel-plugins
 
-Marketplace for [Claude Code](https://code.claude.com) channel plugins — setup wizards, access management, and verification tools for Discord & Telegram.
+Marketplace for [Claude Code](https://code.claude.com) channel plugins — setup wizards, access management, and verification tools for Discord (Telegram coming soon).
 
 ## Install
 

@@ -20,7 +20,7 @@ Run a comprehensive verification of the channel setup. Check each item and repor
 ## Step 1: Detect Channels
 
 ```bash
-ls -d ~/.claude/channels/discord* 2>/dev/null
+ls -d ~/.claude/channels/discord*
 ```
 
 If no directories found: "❌ No Discord channel configured. Run `/channel-setup:setup` first."
