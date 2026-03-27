@@ -1,0 +1,14 @@
+{
+  "name": "claude-channel-plugins",
+  "description": "Marketplace for Claude Code channel plugins — setup wizards, access management, and verification tools for Discord & Telegram.",
+  "owner": "girofu",
+  "repository": "https://github.com/girofu/claude-channel-plugins",
+  "plugins": [
+    {
+      "name": "channel-setup",
+      "path": ".",
+      "description": "Interactive setup wizard for Discord & Telegram channels — token validation, server/channel selection, access control, and tool permissions.",
+      "version": "1.1.0"
+    }
+  ]
+}

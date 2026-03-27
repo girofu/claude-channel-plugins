@@ -1,7 +1,7 @@
 {
-  "name": "claude-channel-setup",
-  "version": "0.2.0",
-  "description": "Automated setup for Claude Code channel plugins (Discord, Telegram)",
+  "name": "claude-channel-plugins",
+  "version": "1.1.0",
+  "description": "Marketplace for Claude Code channel plugins — setup wizards, access management, and verification tools for Discord & Telegram.",
   "type": "module",
   "files": [
     "dist",
@@ -17,15 +17,15 @@
     "test:watch": "vitest",
     "check:build": "tsc --noEmit && npm run build"
   },
-  "keywords": ["claude", "claude-code", "discord", "telegram", "bot", "setup", "cli"],
+  "keywords": ["claude", "claude-code", "discord", "telegram", "bot", "setup", "cli", "plugin", "marketplace", "channel"],
   "author": "girofu",
   "repository": {
     "type": "git",
-    "url": "https://github.com/girofu/claude-channel-setup.git"
+    "url": "https://github.com/girofu/claude-channel-plugins.git"
   },
-  "homepage": "https://github.com/girofu/claude-channel-setup#readme",
+  "homepage": "https://github.com/girofu/claude-channel-plugins#readme",
   "bugs": {
-    "url": "https://github.com/girofu/claude-channel-setup/issues"
+    "url": "https://github.com/girofu/claude-channel-plugins/issues"
   },
   "license": "MIT",
   "devDependencies": {

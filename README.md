@@ -1,176 +1,119 @@
-# claude-channel-setup
+# claude-channel-plugins
 
-Automated setup for [Claude Code](https://code.claude.com) channel plugins — Discord and Telegram.
+Marketplace for [Claude Code](https://code.claude.com) channel plugins — setup wizards, access management, and verification tools for Discord & Telegram.
 
-Reduces the 7-step manual setup process to a single interactive command.
+## Plugins
 
-## What It Automates
-
-| Step | Before | After |
-|------|--------|-------|
-| Validate bot token | Test manually | API verification with bot info display |
-| Generate invite URL (Discord) | Manually select 6 permissions | Auto-computed permission integer |
-| Configure server channels | Manually edit `access.json` | Interactive guild/channel picker via Discord API |
-| Save token | Manually create dirs and `.env` | Auto-saved to `~/.claude/channels/` |
-| Plugin install commands | Look up in docs | Generated and displayed |
-| Launch command | Build `--channels` flag manually | Auto-generated (supports multi-channel) |
-
-**Still manual:** Creating the bot in Discord Developer Portal / Telegram BotFather (no public API exists for this).
+| Plugin | Description | Install |
+|--------|-------------|---------|
+| **channel-setup** | Interactive setup wizard — token validation, server/channel selection, access control, tool permissions | `/plugin install channel-setup@claude-channel-plugins` |
 
 ## Quick Start
 
-No installation required — just run:
+### Install as Claude Code Plugin
 
 ```bash
-npx claude-channel-setup
+# Add marketplace (one time)
+/plugin marketplace add girofu/claude-channel-plugins
+
+# Install the plugin
+/plugin install channel-setup@claude-channel-plugins
+
+# Reload plugins
+/reload-plugins
+```
+
+### Available Skills
+
+After installing, these slash commands are available:
+
+| Command | Description |
+|---------|-------------|
+| `/channel-setup:setup` | Interactive wizard — walks you through the entire setup |
+| `/channel-setup:verify` | Verify config — token, bot presence, access.json, permissions |
+| `/channel-setup:status` | Show current config — DM policy, groups, allowed users |
+| `/channel-setup:access` | Profile-aware access management — pair, allow, deny, policy |
+| `/channel-setup:reset` | Reset config with automatic backup |
+
+### Example: Set Up Discord
+
+```
+> /channel-setup:setup
+
+Phase 1: Environment Detection
+  ✅ Bun runtime detected
+  Found existing profiles: default, frontend
+
+Phase 2: Token Setup
+  Paste your Discord Bot Token: ********
+  ✅ Token verified (bot: MyClaude#1234)
+
+Phase 3: Invite & Server/Channel Setup
+  🔗 Invite URL: https://discord.com/oauth2/authorize?...
+  Select server: My Dev Server
+  Select channels: #claude-dev, #claude-ops
+  Require @mention? Yes
+
+Phase 4: Tool Permissions
+  ✅ Added mcp__plugin_discord_discord__* to settings.json
+
+Phase 5: Complete!
+  Launch: claude --channels plugin:discord@claude-plugins-official
+```
+
+### Example: Pair a User (Cross-Profile)
+
+```
+> /channel-setup:access pair 80ff6a
+
+Scanning all profiles...
+  ✅ Found code 80ff6a in profile discord-frontend
+  ✅ Approved sender 890824536533131274
+```
+
+The key improvement over `/discord:access`: scans ALL profiles automatically — no need to know which profile received the pairing request.
+
+## Standalone CLI
+
+Also available as a standalone CLI for non-plugin workflows:
+
+```bash
+npx claude-channel-plugins
 ```
 
 Or specify channel(s) directly:
 
 ```bash
-npx claude-channel-setup discord
-npx claude-channel-setup telegram
-npx claude-channel-setup discord telegram
+npx claude-channel-plugins discord
+npx claude-channel-plugins telegram
 ```
 
-### Alternative: Python
+## Multi-Bot Profiles
 
-```bash
-pip install claude-channel-setup
-claude-channel-setup
-```
-
-### Alternative: From source
-
-```bash
-git clone https://github.com/girofu/claude-channel-setup.git
-cd claude-channel-setup
-npm install && npm run build
-node dist/index.js
-```
-
-### Example Session
-
-```
-🤖 Claude Channel Setup
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-✅ Claude Code CLI detected
-✅ Bun runtime detected
-
-? Select channel to set up: Discord
-
-🤖 Setting up Discord
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📋 Prerequisites (manual steps):
-   1. Create a new Application at Discord Developer Portal
-   2. Enable "Message Content Intent" in Bot settings
-   3. Copy the Bot Token
-
-? All steps completed? Yes
-? Paste your Discord Bot Token: ********
-
-✅ Token verified (bot: MyClaude#1234)
-
-🔗 Invite URL (all required permissions):
-   https://discord.com/oauth2/authorize?client_id=...&scope=bot&permissions=274878008384
-
-? Open in browser? Yes
-? Bot has joined your server? Yes
-
-? Set up Server Channels? (bot responds in specific channels, not just DMs) Yes
-✅ Found 2 servers
-? Select server: My Dev Server
-✅ Found 5 text channels
-? Select channels to enable (space to toggle, enter to confirm):
-  ◻ #general          [General]
-  ◼ #claude-dev       [Development]
-  ◼ #claude-ops       [Operations]
-  ◻ #random           [General]
-  ◻ #voice-chat-text  [Voice]
-? Require @mention to respond? (recommended for shared channels) Yes
-? Current DM policy is pairing, switch to allowlist? Yes
-✅ Configured 2 channels: #claude-dev, #claude-ops
-
-📦 Plugin install command (run in Claude Code):
-   /plugin install discord@claude-plugins-official
-
-🔑 Token saved to ~/.claude/channels/discord/.env
-
-🤖 Setup Complete
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📝 Next steps:
-   1. Install the plugin in Claude Code (see above)
-   2. Restart Claude Code:
-      claude --channels plugin:discord@claude-plugins-official
-   3. Send a message in the configured channel (if requireMention is enabled, @mention the bot), or DM the bot directly
-```
-
-## Prerequisites
-
-- **Node.js 18+** (for npx) or **Python 3.10+** (for pip)
-- **[Bun](https://bun.sh)** — required by Claude Code channel plugins
-- **Claude Code v2.1.80+** — with channels support
-- **Discord** — a bot created at [Developer Portal](https://discord.com/developers/applications)
-- **Telegram** — a bot created via [BotFather](https://t.me/BotFather)
-
-## Server Channel Setup (Discord Groups)
-
-By default, a Discord bot only responds to DMs. To make it respond in server channels, you need to configure **groups** in `~/.claude/channels/discord/access.json`.
-
-This CLI automates that:
-
-1. Fetches servers the bot has joined (via Discord API)
-2. Lists text channels in the selected server
-3. Lets you pick which channels the bot should respond in
-4. Configures `requireMention` (whether `@bot` is needed)
-5. Writes the config to `access.json`
-
-**Without this step**, the bot silently ignores all server channel messages — only DMs work.
-
-### Multi-Session Setup (Profiles)
-
-To map different Discord channels to different Claude Code sessions, use **profiles**:
-
-```bash
-# Set up Bot A with profile "frontend"
-npx claude-channel-setup discord
-# → Create a separate profile? Yes
-# → Profile name: frontend
-
-# Set up Bot B with profile "backend"
-npx claude-channel-setup discord
-# → Create a separate profile? Yes
-# → Profile name: backend
-```
-
-This creates isolated directories:
+Map different Discord channels to different Claude Code sessions:
 
 ```
 ~/.claude/channels/
-├── discord-frontend/    # Bot A: token + access.json
-└── discord-backend/     # Bot B: token + access.json
+├── discord/              # Default profile
+├── discord-frontend/     # Bot A
+└── discord-backend/      # Bot B
 ```
 
-Then launch each session separately:
+Launch each session separately:
 
 ```bash
-# Terminal 1
-cd ~/projects/frontend
-DISCORD_STATE_DIR=~/.claude/channels/discord-frontend claude --channels plugin:discord@claude-plugins-official
+# Terminal 1 — frontend bot
+DISCORD_STATE_DIR=~/.claude/channels/discord-frontend \
+  claude --channels plugin:discord@claude-plugins-official
 
-# Terminal 2
-cd ~/projects/backend
-DISCORD_STATE_DIR=~/.claude/channels/discord-backend claude --channels plugin:discord@claude-plugins-official
+# Terminal 2 — backend bot
+DISCORD_STATE_DIR=~/.claude/channels/discord-backend \
+  claude --channels plugin:discord@claude-plugins-official
 ```
-
-Each bot is fully isolated — different WebSocket connections, different processes, different working directories.
 
 ## Discord Permissions
 
-The tool generates an invite URL with exactly these permissions:
+The invite URL includes exactly these permissions:
 
 | Permission | Value |
 |-----------|-------|
@@ -185,16 +128,10 @@ The tool generates an invite URL with exactly these permissions:
 ## Development
 
 ```bash
-# Node.js
 npm install
 npm test              # Run tests (vitest)
 npm run build         # Build CLI (tsup)
 npm run check:build   # Type check + build
-
-# Python
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e python/ pytest pytest-asyncio
-pytest python/tests/  # Run tests
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development guide.
@@ -202,26 +139,28 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development guide.
 ## Architecture
 
 ```
-├── src/                          # Node.js/TypeScript
-│   ├── index.ts                  # Interactive CLI entry point
-│   ├── channels/discord.ts       # Discord API validation + invite URL
-│   ├── channels/telegram.ts      # Telegram API validation
-│   ├── lib/access.ts             # access.json management (groups, DM policy)
-│   ├── lib/config.ts             # Token storage (~/.claude/channels/)
-│   ├── lib/claude.ts             # Claude Code CLI detection + commands
-│   ├── commands/setup.ts         # Channel metadata (names, prerequisites)
-│   ├── utils/ui.ts               # CLI formatting (colors, icons)
-│   └── lib/profile.ts            # Multi-bot profile management (STATE_DIR)
-├── python/                       # Python mirror
-│   └── claude_channel_setup/     # Same structure, same functionality
-└── tests/                        # Node.js + Python tests
+├── plugin.json               # Claude Code plugin manifest
+├── marketplace.json          # Marketplace registry
+├── skills/                   # Plugin skills (SKILL.md files)
+│   ├── setup/SKILL.md        # Interactive setup wizard
+│   ├── verify/SKILL.md       # Config verification
+│   ├── status/SKILL.md       # Status display
+│   ├── access/SKILL.md       # Profile-aware access management
+│   └── reset/SKILL.md        # Reset with backup
+├── scripts/                  # Helper scripts for skills
+├── src/                      # TypeScript source
+│   ├── index.ts              # CLI entry point
+│   ├── channels/             # Discord/Telegram API
+│   ├── lib/                  # Core logic (access, config, profile, claude, verify)
+│   └── utils/                # CLI formatting
+└── tests/                    # Vitest tests
 ```
 
 ## Related
 
 - [Claude Code Channels Documentation](https://code.claude.com/docs/en/channels)
-- [Official Channel Plugins](https://github.com/anthropics/claude-plugins-official/tree/main/external_plugins)
-- [Claude Code](https://code.claude.com)
+- [Claude Code Channels Reference](https://code.claude.com/docs/en/channels-reference)
+- [Official Channel Plugins](https://github.com/anthropics/claude-plugins-official)
 
 ## License
 
