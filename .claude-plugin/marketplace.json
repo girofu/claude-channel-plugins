@@ -1,14 +1,16 @@
 {
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "claude-channel-plugins",
   "description": "Marketplace for Claude Code channel plugins — setup wizards, access management, and verification tools for Discord (Telegram coming soon).",
-  "owner": "girofu",
-  "repository": "https://github.com/girofu/claude-channel-plugins",
+  "owner": {
+    "name": "girofu"
+  },
   "plugins": [
     {
       "name": "channel-setup",
-      "path": ".",
       "description": "Interactive setup wizard for Discord channels (Telegram coming soon) — token validation, server/channel selection, access control, and tool permissions.",
-      "version": "1.1.0"
+      "source": ".",
+      "homepage": "https://github.com/girofu/claude-channel-plugins"
     }
   ]
 }
