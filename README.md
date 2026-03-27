@@ -100,8 +100,9 @@ The invite URL includes exactly these permissions:
 ## Structure
 
 ```
-├── plugin.json          # Claude Code plugin manifest
-├── marketplace.json     # Marketplace registry
+├── .claude-plugin/
+│   ├── plugin.json      # Claude Code plugin manifest
+│   └── marketplace.json # Marketplace registry
 └── skills/              # Plugin skills
     ├── setup/SKILL.md   # Interactive setup wizard
     ├── verify/SKILL.md  # Config verification
