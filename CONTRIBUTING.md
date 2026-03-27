@@ -1,86 +1,59 @@
-# Contributing to claude-channel-setup
+# Contributing to claude-channel-plugins
 
-Thank you for your interest in contributing! This guide will help you get started.
+Thank you for your interest in contributing!
 
-## Development Setup
+## How It Works
 
-### Node.js
+This repo is a Claude Code plugin marketplace. The plugin's functionality lives entirely in `skills/` — each skill is a `SKILL.md` file that Claude Code reads and follows as instructions.
 
-```bash
-git clone https://github.com/girofu/claude-channel-setup.git
-cd claude-channel-setup
-npm install
-npm test          # Run tests
-npm run build     # Build CLI
-```
+There is no build step. No compiled code. Just markdown.
 
-### Python
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate   # or .venv\Scripts\activate on Windows
-pip install -e python/
-pip install pytest pytest-asyncio
-pytest python/tests/
-```
-
-## Development Workflow
+## Adding or Editing a Skill
 
 1. **Fork** the repository
-2. **Create a branch** from `main`: `git checkout -b my-feature`
-3. **Write tests first** (TDD): we follow Red-Green-Refactor
-4. **Implement** the feature/fix
-5. **Run all tests**: both Node.js (`npm test`) and Python (`pytest python/tests/`)
-6. **Submit a PR** with a clear description
+2. **Create a branch** from `main`
+3. **Edit** the skill in `skills/<name>/SKILL.md`
+4. **Test** by installing the plugin locally:
+   ```bash
+   /plugin install /path/to/your/clone
+   ```
+5. **Submit a PR** with a clear description of what changed and why
 
-## Code Style
+## Adding a New Skill
 
-### Node.js / TypeScript
-
-- Strict TypeScript (`strict: true`)
-- ESM modules
-- No `any` types unless absolutely necessary
-
-### Python
-
-- Python 3.10+ with type hints
-- `async/await` for HTTP operations
-- Standard library where possible, `httpx` for HTTP
-
-## Adding a New Channel
-
-To add support for a new platform (e.g., Slack):
-
-1. Create `src/channels/slack.ts` and `python/claude_channel_setup/channels/slack.py`
-2. Implement token validation (API call to verify)
-3. Add to `SUPPORTED_CHANNELS` in `src/commands/setup.ts` and `python/.../cli.py`
-4. Write tests in both languages
-5. Update README with setup instructions
-
-## Dual-Language Sync
-
-Node.js and Python versions must stay in sync:
-- Same features, same error messages, same user flow
-- PRs that modify one version should include corresponding changes in the other
-- Test counts should be comparable
+1. Create `skills/<name>/SKILL.md` with YAML frontmatter:
+   ```yaml
+   ---
+   name: my-skill
+   description: >
+     What this skill does and when to trigger it.
+   user-invocable: true
+   allowed-tools:
+     - Read
+     - Write
+     - Bash(curl *)
+   ---
+   ```
+2. Write the skill instructions in markdown
+3. Update `plugin.json` if the skill needs new metadata
+4. Update `README.md` to list the new skill
 
 ## Commit Messages
 
 We use [Conventional Commits](https://www.conventionalcommits.org/):
 
-- `feat:` New feature
-- `fix:` Bug fix
-- `docs:` Documentation
-- `test:` Tests
+- `feat:` New skill or feature
+- `fix:` Bug fix in skill instructions
+- `docs:` Documentation updates
 - `chore:` Maintenance
 
 ## Reporting Bugs
 
 Use the [Bug Report template](.github/ISSUE_TEMPLATE/bug_report.md). Include:
-- Your OS, Node.js/Python version, and Claude Code version
-- Steps to reproduce
-- Full error output
+- Your Claude Code version
+- Which skill you were using
+- What you expected vs what happened
 
 ## Questions?
 
-Open a [Discussion](https://github.com/girofu/claude-channel-setup/discussions) or file an issue.
+Open an [issue](https://github.com/girofu/claude-channel-plugins/issues).

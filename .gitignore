@@ -1,16 +1,3 @@
-# Dependencies
-node_modules/
-
-# Build output
-dist/
-
-# Python
-.venv/
-__pycache__/
-*.egg-info/
-*.pyc
-python/claude_channel_setup.egg-info/
-
 # IDE
 .vscode/
 .idea/
@@ -23,17 +10,8 @@ Thumbs.db
 .env
 .env.local
 
-# Coverage
-coverage/
-.nyc_output/
-htmlcov/
-.coverage
-
 # Context (Conductor)
 .context/
-
-# Claude Code reports
-reports/
 
 # Claude Code local config
 .claude/
