@@ -18,3 +18,13 @@ Thumbs.db
 
 # Maintainer local state
 .github/maintainer/
+
+# Build output
+dist/
+
+# Dependencies
+node_modules/
+package-lock.json
+
+# Python
+python/
