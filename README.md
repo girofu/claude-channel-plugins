@@ -106,14 +106,17 @@ The invite URL includes exactly these permissions:
 
 ```
 ├── .claude-plugin/
-│   ├── plugin.json      # Claude Code plugin manifest
-│   └── marketplace.json # Marketplace registry
-└── skills/              # Plugin skills
-    ├── setup/SKILL.md   # Interactive setup wizard
-    ├── verify/SKILL.md  # Config verification
-    ├── status/SKILL.md  # Status display
-    ├── access/SKILL.md  # Profile-aware access management
-    └── reset/SKILL.md   # Reset with backup
+│   └── marketplace.json         # Marketplace registry
+└── plugins/
+    └── channel-setup/
+        ├── .claude-plugin/
+        │   └── plugin.json      # Plugin manifest
+        └── skills/
+            ├── setup/SKILL.md   # Interactive setup wizard
+            ├── verify/SKILL.md  # Config verification
+            ├── status/SKILL.md  # Status display
+            ├── access/SKILL.md  # Profile-aware access management
+            └── reset/SKILL.md   # Reset with backup
 ```
 
 ## Related
