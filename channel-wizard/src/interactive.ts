@@ -19,23 +19,66 @@ import {
   type ToolPermission,
 } from "./types";
 
-// ==================== 主入口 ====================
+// ==================== 狀態型別 ====================
 
-export async function runInteractive(): Promise<void> {
-  p.intro("Discord Bot 批次設定精靈");
+interface WizardState {
+  bots: BotInfo[];
+  usedProfileNames: string[];
+  channelPool: ChannelPool;
+  botChannelMapping: Map<string, string[]>;
+  requireMentionMap: Map<string, boolean>;
+  globalAllowFrom: string[];
+  perBotAllowFrom: Map<string, string[]>;
+  toolPermissions: ToolPermission[];
+}
 
-  // ── Step 1: 批次註冊 Tokens ──────────────────────────────────────────────
+function createEmptyState(): WizardState {
+  return {
+    bots: [],
+    usedProfileNames: [],
+    channelPool: new Map(),
+    botChannelMapping: new Map(),
+    requireMentionMap: new Map(),
+    globalAllowFrom: [],
+    perBotAllowFrom: new Map(),
+    toolPermissions: [...ALL_TOOL_PERMISSIONS] as ToolPermission[],
+  };
+}
+
+// ==================== 步驟導航 ====================
+
+type StepResult = "next" | "back" | "cancel";
+
+async function askNavigation(stepNum: number): Promise<StepResult> {
+  if (stepNum <= 1) return "next"; // Step 1 沒有上一步
+
+  const nav = await p.select({
+    message: "繼續？",
+    options: [
+      { value: "next", label: "下一步 →" },
+      { value: "back", label: "← 回上一步" },
+    ],
+  });
+
+  if (p.isCancel(nav)) return "cancel";
+  return nav as StepResult;
+}
+
+// ==================== Step 1: 批次註冊 Tokens ====================
+
+async function step1_registerTokens(state: WizardState): Promise<StepResult> {
   p.log.step("步驟 1/5：批次註冊 Bot Tokens");
 
-  const bots: BotInfo[] = [];
-  const usedProfileNames: string[] = [];
+  // 清空之前的資料（回到此步時重新開始）
+  state.bots = [];
+  state.usedProfileNames = [];
 
   let addMoreBots = true;
   while (addMoreBots) {
     const tokenInput = await p.text({
-      message: bots.length === 0
+      message: state.bots.length === 0
         ? "請輸入 Bot Token"
-        : `請輸入第 ${bots.length + 1} 個 Bot Token`,
+        : `請輸入第 ${state.bots.length + 1} 個 Bot Token`,
       placeholder: "從 Discord Developer Portal 複製的 Token",
       validate: (value) => {
         if (!value || value.trim() === "") return "Token 不能為空";
@@ -43,16 +86,11 @@ export async function runInteractive(): Promise<void> {
     });
 
     if (p.isCancel(tokenInput)) {
-      if (bots.length > 0) {
-        // 已有 bot，視為結束輸入
-        break;
-      }
-      p.cancel("已取消");
-      process.exit(0);
+      if (state.bots.length > 0) break;
+      return "cancel";
     }
 
     const token = (tokenInput as string).trim();
-
     const s = p.spinner();
     s.start(`驗證 token: ${token.substring(0, 20)}...`);
 
@@ -68,18 +106,14 @@ export async function runInteractive(): Promise<void> {
           { value: "cancel", label: "取消整個精靈" },
         ],
       });
-      if (p.isCancel(action) || action === "cancel") {
-        p.cancel("已取消");
-        process.exit(0);
-      }
+      if (p.isCancel(action) || action === "cancel") return "cancel";
       if (action === "retry") continue;
-      // skip: fall through to "add more?" prompt
     } else {
       s.message(`取得伺服器列表: ${result.botName}...`);
       const guilds = await fetchGuilds(token);
       s.stop(`✓ ${result.botName}（加入了 ${guilds.length} 個伺服器）`);
 
-      const autoProfileName = generateProfileName(result.botName, usedProfileNames);
+      const autoProfileName = generateProfileName(result.botName, state.usedProfileNames);
       p.log.info(`Profile 名稱：${autoProfileName}`);
 
       const wantCustomName = await p.confirm({
@@ -94,7 +128,7 @@ export async function runInteractive(): Promise<void> {
           initialValue: autoProfileName,
           validate: (value) => {
             if (!value || value.trim() === "") return "不能為空";
-            if (usedProfileNames.includes(value.trim()))
+            if (state.usedProfileNames.includes(value.trim()))
               return "此名稱已被使用";
           },
         });
@@ -103,8 +137,8 @@ export async function runInteractive(): Promise<void> {
         }
       }
 
-      usedProfileNames.push(profileName);
-      bots.push({
+      state.usedProfileNames.push(profileName);
+      state.bots.push({
         token,
         botName: result.botName,
         botId: result.botId,
@@ -120,19 +154,21 @@ export async function runInteractive(): Promise<void> {
     addMoreBots = !p.isCancel(more) && more === true;
   }
 
-  if (bots.length === 0) {
-    p.cancel("沒有有效的 bot，結束");
-    process.exit(1);
-  }
+  if (state.bots.length === 0) return "cancel";
 
-  p.log.success(`已註冊 ${bots.length} 個 Bot：${bots.map(b => b.botName).join(", ")}`);
+  p.log.success(`已註冊 ${state.bots.length} 個 Bot：${state.bots.map(b => b.botName).join(", ")}`);
+  return "next";
+}
 
-  // ── Step 2: 頻道池建立 ────────────────────────────────────────────────────
+// ==================== Step 2: 頻道池建立 ====================
+
+async function step2_buildChannelPool(state: WizardState): Promise<StepResult> {
   p.log.step("步驟 2/5：建立頻道池");
 
-  const channelPool: ChannelPool = new Map<string, ChannelInfo>();
+  // 清空之前的頻道池（回到此步時重新查詢）
+  state.channelPool = new Map();
 
-  for (const bot of bots) {
+  for (const bot of state.bots) {
     if (bot.guilds.length === 0) continue;
 
     const s = p.spinner();
@@ -141,8 +177,8 @@ export async function runInteractive(): Promise<void> {
     for (const guild of bot.guilds) {
       const channels = await fetchGuildChannels(bot.token, guild.id, guild.name);
       for (const ch of channels) {
-        if (!channelPool.has(ch.id)) {
-          channelPool.set(ch.id, ch);
+        if (!state.channelPool.has(ch.id)) {
+          state.channelPool.set(ch.id, ch);
         }
       }
     }
@@ -150,59 +186,82 @@ export async function runInteractive(): Promise<void> {
     s.stop(`✓ ${bot.botName} 的頻道已載入`);
   }
 
-  // 顯示頻道池（依伺服器分組）
+  // 顯示頻道池
   const channelsByServer = new Map<string, ChannelInfo[]>();
-  for (const ch of channelPool.values()) {
+  for (const ch of state.channelPool.values()) {
     const list = channelsByServer.get(ch.serverName) ?? [];
     list.push(ch);
     channelsByServer.set(ch.serverName, list);
   }
 
-  for (const [serverName, channels] of channelsByServer) {
-    const channelList = channels.map((c) => `  #${c.name} (${c.id})`).join("\n");
-    p.log.info(`伺服器：${serverName}\n${channelList}`);
+  if (channelsByServer.size > 0) {
+    for (const [serverName, channels] of channelsByServer) {
+      const channelList = channels.map((c) => `  #${c.name} (${c.id})`).join("\n");
+      p.log.info(`伺服器：${serverName}\n${channelList}`);
+    }
+  } else {
+    p.log.warn("未發現任何頻道（Bot 可能尚未加入伺服器）");
   }
 
-  // 詢問是否要手動新增頻道
+  // 手動新增
   const wantManual = await p.confirm({
     message: "是否要手動新增頻道（輸入 channelId,serverId 格式）？",
     initialValue: false,
   });
 
   if (!p.isCancel(wantManual) && wantManual === true) {
-    const manualInput = await p.text({
-      message: "請輸入頻道（每行一個，格式：channelId,serverId）",
-      placeholder: "123456789,987654321",
-    });
+    let addMore = true;
+    while (addMore) {
+      const manualInput = await p.text({
+        message: "請輸入頻道（格式：channelId,serverId）",
+        placeholder: "123456789,987654321",
+        validate: (value) => {
+          if (!value || value.trim() === "") return "不能為空";
+          if (!value.includes(",")) return "格式：channelId,serverId";
+        },
+      });
 
-    if (!p.isCancel(manualInput) && manualInput) {
-      const lines = (manualInput as string)
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
-
-      for (const line of lines) {
-        const parts = line.split(",");
-        if (parts.length >= 1) {
-          const channelId = parts[0].trim();
-          const serverId = parts[1]?.trim() ?? "";
-          if (channelId && !channelPool.has(channelId)) {
-            channelPool.set(channelId, {
-              id: channelId,
-              name: channelId,
-              serverId,
-              serverName: serverId,
-              type: 0,
-              source: "manual",
-            });
-          }
+      if (!p.isCancel(manualInput) && manualInput) {
+        const parts = (manualInput as string).split(",");
+        const channelId = parts[0].trim();
+        const serverId = parts[1]?.trim() ?? "";
+        if (channelId && !state.channelPool.has(channelId)) {
+          state.channelPool.set(channelId, {
+            id: channelId,
+            name: channelId,
+            serverId,
+            serverName: serverId || "手動新增",
+            type: 0,
+            source: "manual",
+          });
+          p.log.success(`已新增頻道 ${channelId}`);
         }
       }
+
+      const more = await p.confirm({
+        message: "要繼續新增頻道嗎？",
+        initialValue: false,
+      });
+      addMore = !p.isCancel(more) && more === true;
     }
   }
 
-  // ── Step 3: Bot↔Channel 矩陣對應 ─────────────────────────────────────────
+  return await askNavigation(2);
+}
+
+// ==================== Step 3: Bot↔Channel 矩陣對應 ====================
+
+async function step3_mapBotChannels(state: WizardState): Promise<StepResult> {
   p.log.step("步驟 3/5：設定 Bot↔頻道對應");
+
+  // 清空之前的對應
+  state.botChannelMapping = new Map();
+  const allChannels = Array.from(state.channelPool.values());
+
+  if (allChannels.length === 0) {
+    p.log.warn("頻道池為空，請回到上一步新增頻道");
+    return "back";
+  }
 
   const mappingMode = await p.select({
     message: "選擇對應模式",
@@ -212,46 +271,35 @@ export async function runInteractive(): Promise<void> {
     ],
   });
 
-  if (p.isCancel(mappingMode)) {
-    p.cancel("已取消");
-    process.exit(0);
-  }
+  if (p.isCancel(mappingMode)) return "cancel";
 
-  const botChannelMapping = new Map<string, string[]>();
-  const allChannels = Array.from(channelPool.values());
-
-  for (const bot of bots) {
+  for (const bot of state.bots) {
     if (mappingMode === "quick") {
       const quickInput = await p.text({
-        message: `${bot.botName} 的頻道（* = 全部，#名稱，或頻道 ID，空格分隔）`,
-        placeholder: "* 或 #general #announcements 或 123456",
+        message: `${bot.botName} 的頻道（* = 全部，#名稱，或頻道 ID，逗號分隔）`,
+        placeholder: "* 或 #general, #announcements 或 123456",
         validate: (value) => {
           if (!value || value.trim() === "") return "至少需要輸入一個頻道";
         },
       });
 
-      if (p.isCancel(quickInput)) {
-        p.cancel("已取消");
-        process.exit(0);
-      }
+      if (p.isCancel(quickInput)) return "cancel";
 
-      const tokens = (quickInput as string)
+      const refs = (quickInput as string)
         .trim()
-        .split(/\s+/)
+        .split(/[\s,]+/)
         .filter((t) => t.length > 0);
       const resolvedChannelIds: string[] = [];
 
-      for (const token of tokens) {
-        if (token === "*") {
-          // 全部頻道
+      for (const ref of refs) {
+        if (ref === "*") {
           for (const ch of allChannels) {
             if (!resolvedChannelIds.includes(ch.id)) {
               resolvedChannelIds.push(ch.id);
             }
           }
-        } else if (token.startsWith("#")) {
-          // 依名稱搜尋
-          const name = token.substring(1).toLowerCase();
+        } else if (ref.startsWith("#")) {
+          const name = ref.substring(1).toLowerCase();
           const matches = allChannels.filter(
             (ch) => ch.name.toLowerCase() === name
           );
@@ -272,16 +320,15 @@ export async function runInteractive(): Promise<void> {
             }
           }
         } else {
-          // 直接 ID
-          if (!resolvedChannelIds.includes(token)) {
-            resolvedChannelIds.push(token);
+          if (!resolvedChannelIds.includes(ref)) {
+            resolvedChannelIds.push(ref);
           }
         }
       }
 
-      botChannelMapping.set(bot.token, resolvedChannelIds);
+      state.botChannelMapping.set(bot.token, resolvedChannelIds);
+      p.log.info(`${bot.botName} → ${resolvedChannelIds.length} 個頻道`);
     } else {
-      // interactive: p.multiselect
       const options = allChannels.map((ch) => ({
         value: ch.id,
         label: ch.source === "api" ? `#${ch.name} (${ch.serverName})` : `${ch.id} [手動]`,
@@ -290,7 +337,7 @@ export async function runInteractive(): Promise<void> {
 
       if (options.length === 0) {
         p.log.warn(`沒有可選頻道，${bot.botName} 跳過`);
-        botChannelMapping.set(bot.token, []);
+        state.botChannelMapping.set(bot.token, []);
         continue;
       }
 
@@ -300,83 +347,72 @@ export async function runInteractive(): Promise<void> {
         required: true,
       });
 
-      if (p.isCancel(selected)) {
-        p.cancel("已取消");
-        process.exit(0);
-      }
+      if (p.isCancel(selected)) return "cancel";
 
-      botChannelMapping.set(bot.token, selected as string[]);
+      state.botChannelMapping.set(bot.token, selected as string[]);
     }
   }
 
-  // ── Step 4: 批次設定 ───────────────────────────────────────────────────────
+  return await askNavigation(3);
+}
+
+// ==================== Step 4: 批次設定 ====================
+
+async function step4_batchSettings(state: WizardState): Promise<StepResult> {
   p.log.step("步驟 4/5：批次設定");
 
   // 4a: mention 設定
   const mentionMode = await p.select({
-    message: "需要 mention bot 才回應嗎？",
+    message: "需要 @ mention bot 才回應嗎？",
     options: [
-      { value: "all-yes", label: "全部需要 mention" },
-      { value: "all-no", label: "全部不需要 mention" },
+      { value: "all-yes", label: "全部需要 @" },
+      { value: "all-no", label: "全部不需要 @" },
       { value: "per-bot", label: "逐一設定" },
     ],
   });
 
-  if (p.isCancel(mentionMode)) {
-    p.cancel("已取消");
-    process.exit(0);
-  }
+  if (p.isCancel(mentionMode)) return "cancel";
 
-  const requireMentionMap = new Map<string, boolean>();
+  state.requireMentionMap = new Map();
   if (mentionMode === "all-yes") {
-    for (const bot of bots) requireMentionMap.set(bot.token, true);
+    for (const bot of state.bots) state.requireMentionMap.set(bot.token, true);
   } else if (mentionMode === "all-no") {
-    for (const bot of bots) requireMentionMap.set(bot.token, false);
+    for (const bot of state.bots) state.requireMentionMap.set(bot.token, false);
   } else {
-    for (const bot of bots) {
+    for (const bot of state.bots) {
       const val = await p.confirm({
-        message: `${bot.botName} 需要 mention 才回應？`,
+        message: `${bot.botName} 需要 @ 才回應？`,
         initialValue: true,
       });
-      if (p.isCancel(val)) {
-        p.cancel("已取消");
-        process.exit(0);
-      }
-      requireMentionMap.set(bot.token, val as boolean);
+      if (p.isCancel(val)) return "cancel";
+      state.requireMentionMap.set(bot.token, val as boolean);
     }
   }
 
   // 4b: allowFrom 設定
   const globalAllowFromInput = await p.text({
     message: "全域允許的使用者 ID（逗號分隔，必填）",
-    placeholder: "123456789,987654321",
+    placeholder: "123456789, 987654321",
     validate: (value) => {
       if (!value || value.trim() === "") return "至少需要一個使用者 ID";
     },
   });
 
-  if (p.isCancel(globalAllowFromInput)) {
-    p.cancel("已取消");
-    process.exit(0);
-  }
+  if (p.isCancel(globalAllowFromInput)) return "cancel";
 
-  const globalAllowFrom = (globalAllowFromInput as string)
+  state.globalAllowFrom = (globalAllowFromInput as string)
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
 
-  // 每個 bot 的額外 allowFrom
-  const perBotAllowFrom = new Map<string, string[]>();
-  for (const bot of bots) {
+  state.perBotAllowFrom = new Map();
+  for (const bot of state.bots) {
     const extraInput = await p.text({
-      message: `${bot.botName} 額外允許的使用者 ID（選填，逗號分隔）`,
-      placeholder: "留空表示不額外新增",
+      message: `${bot.botName} 額外允許的使用者 ID（選填，留空跳過）`,
+      placeholder: "逗號分隔，留空表示不額外新增",
     });
 
-    if (p.isCancel(extraInput)) {
-      p.cancel("已取消");
-      process.exit(0);
-    }
+    if (p.isCancel(extraInput)) return "cancel";
 
     const extra =
       extraInput && (extraInput as string).trim()
@@ -386,8 +422,8 @@ export async function runInteractive(): Promise<void> {
             .filter((s) => s.length > 0)
         : [];
 
-    const merged = Array.from(new Set([...globalAllowFrom, ...extra]));
-    perBotAllowFrom.set(bot.token, merged);
+    const merged = Array.from(new Set([...state.globalAllowFrom, ...extra]));
+    state.perBotAllowFrom.set(bot.token, merged);
   }
 
   // 4c: tool permissions
@@ -397,22 +433,47 @@ export async function runInteractive(): Promise<void> {
   }));
 
   const selectedTools = await p.multiselect({
-    message: "選擇要授予的工具權限",
+    message: "選擇要授予的工具權限（預設全選）",
     options: toolOptions,
     initialValues: [...ALL_TOOL_PERMISSIONS] as string[],
     required: false,
   });
 
-  if (p.isCancel(selectedTools)) {
-    p.cancel("已取消");
-    process.exit(0);
-  }
+  if (p.isCancel(selectedTools)) return "cancel";
+  state.toolPermissions = selectedTools as ToolPermission[];
 
-  const toolPermissions = selectedTools as ToolPermission[];
+  return await askNavigation(4);
+}
 
-  // ── Step 5: 產出 ─────────────────────────────────────────────────────────
-  p.log.step("步驟 5/5：產出設定檔");
+// ==================== Step 5: 產出 ====================
 
+async function step5_generate(state: WizardState): Promise<StepResult> {
+  p.log.step("步驟 5/5：確認並產出設定檔");
+
+  // 顯示摘要讓使用者確認
+  const summaryLines = [
+    `Bot 數量：${state.bots.length}`,
+    ...state.bots.map((b) => {
+      const channels = state.botChannelMapping.get(b.token) ?? [];
+      const mention = state.requireMentionMap.get(b.token) ? "需要 @" : "不需要 @";
+      return `  • ${b.botName} (${b.profileName}): ${channels.length} 個頻道, ${mention}`;
+    }),
+    "",
+    `全域白名單：${state.globalAllowFrom.join(", ")}`,
+    `工具權限：${state.toolPermissions.join(", ")}`,
+  ];
+
+  p.note(summaryLines.join("\n"), "設定摘要");
+
+  const confirmed = await p.confirm({
+    message: "確認產出設定？（選「否」回到上一步修改）",
+    initialValue: true,
+  });
+
+  if (p.isCancel(confirmed)) return "cancel";
+  if (confirmed === false) return "back";
+
+  // 開始寫入
   const channelsBase = join(homedir(), ".claude", "channels");
   const scriptsDir = join(channelsBase, "scripts");
   const settingsPath = join(homedir(), ".claude", "settings.json");
@@ -420,11 +481,11 @@ export async function runInteractive(): Promise<void> {
   const createdFiles: string[] = [];
   const inviteLinks: string[] = [];
 
-  for (const bot of bots) {
+  for (const bot of state.bots) {
     const profileDir = join(channelsBase, bot.profileName);
-    const channelIds = botChannelMapping.get(bot.token) ?? [];
-    const allowFrom = perBotAllowFrom.get(bot.token) ?? globalAllowFrom;
-    const requireMention = requireMentionMap.get(bot.token) ?? true;
+    const channelIds = state.botChannelMapping.get(bot.token) ?? [];
+    const allowFrom = state.perBotAllowFrom.get(bot.token) ?? state.globalAllowFrom;
+    const requireMention = state.requireMentionMap.get(bot.token) ?? true;
 
     const s = p.spinner();
     s.start(`寫入 ${bot.botName} 的設定...`);
@@ -442,7 +503,6 @@ export async function runInteractive(): Promise<void> {
     createdFiles.push(join(profileDir, ".env"));
     createdFiles.push(join(profileDir, "access.json"));
 
-    // 檢查 bot 是否不在目標伺服器
     if (bot.guilds.length === 0) {
       const inviteLink = `https://discord.com/api/oauth2/authorize?client_id=${bot.botId}&permissions=${DISCORD_BOT_PERMISSIONS}&scope=bot`;
       inviteLinks.push(`${bot.botName}: ${inviteLink}`);
@@ -453,7 +513,7 @@ export async function runInteractive(): Promise<void> {
   {
     const s = p.spinner();
     s.start("更新 settings.json...");
-    await updateSettingsJson(settingsPath, toolPermissions);
+    await updateSettingsJson(settingsPath, state.toolPermissions);
     s.stop("✓ settings.json 已更新");
   }
 
@@ -461,7 +521,7 @@ export async function runInteractive(): Promise<void> {
   {
     const s = p.spinner();
     s.start("寫入啟動腳本...");
-    const profileNames = bots.map((b) => b.profileName);
+    const profileNames = state.bots.map((b) => b.profileName);
     await writeAllScripts(profileNames, scriptsDir);
     s.stop(`✓ 啟動腳本已寫入 ${scriptsDir}`);
     for (const pn of profileNames) {
@@ -470,11 +530,8 @@ export async function runInteractive(): Promise<void> {
     createdFiles.push(join(scriptsDir, "start-all.sh"));
   }
 
-  // 顯示摘要
+  // 顯示完成摘要
   const startAllPath = join(scriptsDir, "start-all.sh");
-  const startCommands = bots
-    .map((b) => `bash ${join(scriptsDir, `start-${b.profileName}.sh`)}`)
-    .join("\n");
 
   p.note(
     [
@@ -482,33 +539,63 @@ export async function runInteractive(): Promise<void> {
       ...createdFiles.map((f) => `  ${f}`),
       "",
       "啟動指令：",
-      ...bots.map(
-        (b) => `  bash ${join(scriptsDir, `start-${b.profileName}.sh`)}`
+      ...state.bots.map(
+        (b) => `  DISCORD_STATE_DIR=~/.claude/channels/${b.profileName} \\`,
+      ),
+      ...state.bots.map(
+        (b) => `    claude --channel plugin:discord@claude-plugins-official --dangerously-skip-permissions`,
       ),
       "",
-      `或一次啟動全部：bash ${startAllPath}`,
+      `一鍵啟動全部：bash ${startAllPath}`,
     ].join("\n"),
     "完成摘要"
   );
 
   if (inviteLinks.length > 0) {
     p.note(
-      ["以下 bot 尚未加入任何伺服器，請使用邀請連結：", ...inviteLinks].join(
-        "\n"
-      ),
+      ["以下 bot 尚未加入任何伺服器，請使用邀請連結：", ...inviteLinks].join("\n"),
       "邀請連結"
     );
   }
 
   p.note(
     [
-      "提醒事項：",
       "• 私有頻道需要在 Discord 中手動將 bot 加入",
-      "• 執行 claude --channel plugin:discord@claude-plugins-official 驗證設定",
-      "• 請確保 DISCORD_BOT_TOKEN 的 .env 檔案權限設為 600",
+      "• 使用 /channel-setup:verify 驗證設定是否正確",
     ].join("\n"),
-    "注意事項"
+    "提醒"
   );
+
+  return "next";
+}
+
+// ==================== 主入口：狀態機 ====================
+
+export async function runInteractive(): Promise<void> {
+  p.intro("Discord Bot 批次設定精靈");
+
+  const state = createEmptyState();
+  const steps = [step1_registerTokens, step2_buildChannelPool, step3_mapBotChannels, step4_batchSettings, step5_generate];
+  let currentStep = 0;
+
+  while (currentStep < steps.length) {
+    const result = await steps[currentStep](state);
+
+    switch (result) {
+      case "next":
+        currentStep++;
+        break;
+      case "back":
+        if (currentStep > 0) {
+          currentStep--;
+          p.log.info("← 回到上一步");
+        }
+        break;
+      case "cancel":
+        p.cancel("已取消");
+        process.exit(0);
+    }
+  }
 
   p.outro("設定完成！");
 }
