@@ -77,9 +77,9 @@ async function step1_registerTokens(state: WizardState): Promise<StepResult> {
   while (addMoreBots) {
     const tokenInput = await p.text({
       message: state.bots.length === 0
-        ? "請輸入 Bot Token"
-        : `請輸入第 ${state.bots.length + 1} 個 Bot Token`,
-      placeholder: "從 Discord Developer Portal 複製的 Token",
+        ? "請輸入 Bot Token（多個可用逗號分隔）"
+        : `請輸入第 ${state.bots.length + 1} 個 Bot Token（或逗號分隔多個）`,
+      placeholder: "token1, token2, ...",
       validate: (value) => {
         if (!value || value.trim() === "") return "Token 不能為空";
       },
@@ -90,25 +90,31 @@ async function step1_registerTokens(state: WizardState): Promise<StepResult> {
       return "cancel";
     }
 
-    const token = (tokenInput as string).trim();
-    const s = p.spinner();
-    s.start(`驗證 token: ${token.substring(0, 20)}...`);
+    // 支援逗號分隔多個 token
+    const rawTokens = (tokenInput as string)
+      .split(",")
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
 
-    const result = await validateToken(token);
+    for (const token of rawTokens) {
+      const s = p.spinner();
+      s.start(`驗證 token: ${token.substring(0, 20)}...`);
 
-    if (!result.valid) {
-      s.stop(`✗ Token 無效 (${result.error})`);
-      const action = await p.select({
-        message: "此 token 無效，如何處理？",
-        options: [
-          { value: "retry", label: "重新輸入" },
-          { value: "skip", label: "跳過" },
-          { value: "cancel", label: "取消整個精靈" },
-        ],
-      });
-      if (p.isCancel(action) || action === "cancel") return "cancel";
-      if (action === "retry") continue;
-    } else {
+      const result = await validateToken(token);
+
+      if (!result.valid) {
+        s.stop(`✗ Token 無效 (${result.error}): ${token.substring(0, 20)}...`);
+        const action = await p.select({
+          message: "此 token 無效，如何處理？",
+          options: [
+            { value: "skip", label: "跳過" },
+            { value: "cancel", label: "取消整個精靈" },
+          ],
+        });
+        if (p.isCancel(action) || action === "cancel") return "cancel";
+        continue;
+      }
+
       s.message(`取得伺服器列表: ${result.botName}...`);
       const guilds = await fetchGuilds(token);
       s.stop(`✓ ${result.botName}（加入了 ${guilds.length} 個伺服器）`);
