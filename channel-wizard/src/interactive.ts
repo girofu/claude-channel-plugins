@@ -27,39 +27,44 @@ export async function runInteractive(): Promise<void> {
   // ── Step 1: 批次註冊 Tokens ──────────────────────────────────────────────
   p.log.step("步驟 1/5：批次註冊 Bot Tokens");
 
-  const tokenInput = await p.text({
-    message: "請輸入 Bot Token（每行一個，可貼多個）",
-    placeholder: "MTA1NjI1MTc...",
-    validate: (value) => {
-      if (!value || value.trim() === "") return "至少需要一個 token";
-    },
-  });
-
-  if (p.isCancel(tokenInput)) {
-    p.cancel("已取消");
-    process.exit(0);
-  }
-
-  const rawTokens = (tokenInput as string)
-    .split("\n")
-    .map((t) => t.trim())
-    .filter((t) => t.length > 0);
-
   const bots: BotInfo[] = [];
   const usedProfileNames: string[] = [];
 
-  for (const token of rawTokens) {
+  let addMoreBots = true;
+  while (addMoreBots) {
+    const tokenInput = await p.text({
+      message: bots.length === 0
+        ? "請輸入 Bot Token"
+        : `請輸入第 ${bots.length + 1} 個 Bot Token`,
+      placeholder: "從 Discord Developer Portal 複製的 Token",
+      validate: (value) => {
+        if (!value || value.trim() === "") return "Token 不能為空";
+      },
+    });
+
+    if (p.isCancel(tokenInput)) {
+      if (bots.length > 0) {
+        // 已有 bot，視為結束輸入
+        break;
+      }
+      p.cancel("已取消");
+      process.exit(0);
+    }
+
+    const token = (tokenInput as string).trim();
+
     const s = p.spinner();
     s.start(`驗證 token: ${token.substring(0, 20)}...`);
 
     const result = await validateToken(token);
 
     if (!result.valid) {
-      s.error(`Token 無效 (${result.error}): ${token.substring(0, 20)}...`);
+      s.stop(`✗ Token 無效 (${result.error})`);
       const action = await p.select({
         message: "此 token 無效，如何處理？",
         options: [
-          { value: "skip", label: "跳過此 token" },
+          { value: "retry", label: "重新輸入" },
+          { value: "skip", label: "跳過" },
           { value: "cancel", label: "取消整個精靈" },
         ],
       });
@@ -67,53 +72,60 @@ export async function runInteractive(): Promise<void> {
         p.cancel("已取消");
         process.exit(0);
       }
-      continue;
+      if (action === "retry") continue;
+      // skip: fall through to "add more?" prompt
+    } else {
+      s.message(`取得伺服器列表: ${result.botName}...`);
+      const guilds = await fetchGuilds(token);
+      s.stop(`✓ ${result.botName}（加入了 ${guilds.length} 個伺服器）`);
+
+      const autoProfileName = generateProfileName(result.botName, usedProfileNames);
+      p.log.info(`Profile 名稱：${autoProfileName}`);
+
+      const wantCustomName = await p.confirm({
+        message: "是否要修改 profile 名稱？",
+        initialValue: false,
+      });
+
+      let profileName = autoProfileName;
+      if (!p.isCancel(wantCustomName) && wantCustomName === true) {
+        const customName = await p.text({
+          message: "請輸入 profile 名稱",
+          initialValue: autoProfileName,
+          validate: (value) => {
+            if (!value || value.trim() === "") return "不能為空";
+            if (usedProfileNames.includes(value.trim()))
+              return "此名稱已被使用";
+          },
+        });
+        if (!p.isCancel(customName)) {
+          profileName = (customName as string).trim();
+        }
+      }
+
+      usedProfileNames.push(profileName);
+      bots.push({
+        token,
+        botName: result.botName,
+        botId: result.botId,
+        profileName,
+        guilds,
+      });
     }
 
-    s.message(`取得伺服器列表: ${result.botName}...`);
-    const guilds = await fetchGuilds(token);
-    s.stop(`✓ ${result.botName}（加入了 ${guilds.length} 個伺服器）`);
-
-    const autoProfileName = generateProfileName(result.botName, usedProfileNames);
-
-    // 顯示建議的 profile 名稱，讓使用者確認或修改
-    p.log.info(`建議的 profile 名稱：${autoProfileName}`);
-
-    const wantCustomName = await p.confirm({
-      message: "是否要修改 profile 名稱？",
+    const more = await p.confirm({
+      message: "要新增更多 Bot 嗎？",
       initialValue: false,
     });
-
-    let profileName = autoProfileName;
-    if (!p.isCancel(wantCustomName) && wantCustomName === true) {
-      const customName = await p.text({
-        message: "請輸入 profile 名稱",
-        initialValue: autoProfileName,
-        validate: (value) => {
-          if (!value || value.trim() === "") return "不能為空";
-          if (usedProfileNames.includes(value.trim()))
-            return "此名稱已被使用";
-        },
-      });
-      if (!p.isCancel(customName)) {
-        profileName = (customName as string).trim();
-      }
-    }
-
-    usedProfileNames.push(profileName);
-    bots.push({
-      token,
-      botName: result.botName,
-      botId: result.botId,
-      profileName,
-      guilds,
-    });
+    addMoreBots = !p.isCancel(more) && more === true;
   }
 
   if (bots.length === 0) {
     p.cancel("沒有有效的 bot，結束");
     process.exit(1);
   }
+
+  p.log.success(`已註冊 ${bots.length} 個 Bot：${bots.map(b => b.botName).join(", ")}`);
 
   // ── Step 2: 頻道池建立 ────────────────────────────────────────────────────
   p.log.step("步驟 2/5：建立頻道池");
