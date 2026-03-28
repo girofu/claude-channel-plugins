@@ -545,12 +545,12 @@ async function step5_generate(state: WizardState): Promise<StepResult> {
       ...createdFiles.map((f) => `  ${f}`),
       "",
       "啟動指令：",
-      ...state.bots.map(
-        (b) => `  DISCORD_STATE_DIR=~/.claude/channels/${b.profileName} \\`,
-      ),
-      ...state.bots.map(
-        (b) => `    claude --channel plugin:discord@claude-plugins-official --dangerously-skip-permissions`,
-      ),
+      ...state.bots.flatMap((b) => [
+        `  DISCORD_STATE_DIR=~/.claude/channels/${b.profileName} \\`,
+        `    claude --channel plugin:discord@claude-plugins-official \\`,
+        `    --dangerously-skip-permissions`,
+        "",
+      ]),
       "",
       `一鍵啟動全部：bash ${startAllPath}`,
     ].join("\n"),
