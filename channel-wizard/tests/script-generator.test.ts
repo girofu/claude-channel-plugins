@@ -21,7 +21,7 @@ describe("generateStartScript", () => {
 
   it("includes the discord plugin channel flag", () => {
     const script = generateStartScript("my-bot");
-    expect(script).toContain("--channel plugin:discord@claude-plugins-official");
+    expect(script).toContain("--channels plugin:discord@claude-plugins-official");
   });
 
   it("includes --dangerously-skip-permissions flag", () => {

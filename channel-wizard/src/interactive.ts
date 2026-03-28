@@ -547,7 +547,7 @@ async function step5_generate(state: WizardState): Promise<StepResult> {
       "啟動指令：",
       ...state.bots.flatMap((b) => [
         `  DISCORD_STATE_DIR=~/.claude/channels/${b.profileName} \\`,
-        `    claude --channel plugin:discord@claude-plugins-official \\`,
+        `    claude --channels plugin:discord@claude-plugins-official \\`,
         `    --dangerously-skip-permissions`,
         "",
       ]),

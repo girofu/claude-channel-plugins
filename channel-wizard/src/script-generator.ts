@@ -7,7 +7,7 @@ import { join } from "node:path";
 export function generateStartScript(profileName: string): string {
   return `#!/bin/bash
 DISCORD_STATE_DIR=~/.claude/channels/${profileName} \\
-  claude --channel plugin:discord@claude-plugins-official \\
+  claude --channels plugin:discord@claude-plugins-official \\
   --dangerously-skip-permissions
 `;
 }
