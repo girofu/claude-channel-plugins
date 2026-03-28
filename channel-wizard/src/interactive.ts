@@ -452,6 +452,9 @@ export async function runInteractive(): Promise<void> {
     const profileNames = bots.map((b) => b.profileName);
     await writeAllScripts(profileNames, scriptsDir);
     s.stop(`✓ 啟動腳本已寫入 ${scriptsDir}`);
+    for (const pn of profileNames) {
+      createdFiles.push(join(scriptsDir, `start-${pn}.sh`));
+    }
     createdFiles.push(join(scriptsDir, "start-all.sh"));
   }
 
