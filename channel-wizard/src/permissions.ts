@@ -1,4 +1,5 @@
-import { copyFile } from "node:fs/promises";
+import { readFile, writeFile, copyFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import type { ToolPermission } from "./types";
 
 export interface SettingsJson {
@@ -9,14 +10,12 @@ export interface SettingsJson {
 export async function readSettingsJson(
   settingsPath: string
 ): Promise<SettingsJson> {
-  const file = Bun.file(settingsPath);
-  const exists = await file.exists();
-
-  if (!exists) {
+  if (!existsSync(settingsPath)) {
     return { permissions: { allow: [] } };
   }
 
-  const parsed = (await file.json()) as Record<string, unknown>;
+  const content = await readFile(settingsPath, "utf-8");
+  const parsed = JSON.parse(content) as Record<string, unknown>;
   const permissions = (parsed["permissions"] ?? {}) as Record<string, unknown>;
   const allow = Array.isArray(permissions["allow"])
     ? (permissions["allow"] as string[])
@@ -52,15 +51,12 @@ export async function updateSettingsJson(
   settingsPath: string,
   tools: ToolPermission[]
 ): Promise<void> {
-  const file = Bun.file(settingsPath);
-  const exists = await file.exists();
-
-  if (exists) {
+  if (existsSync(settingsPath)) {
     await copyFile(settingsPath, settingsPath + ".bak");
   }
 
   const current = await readSettingsJson(settingsPath);
   const updated = addToolPermissions(current, tools);
 
-  await Bun.write(settingsPath, JSON.stringify(updated, null, 2) + "\n");
+  await writeFile(settingsPath, JSON.stringify(updated, null, 2) + "\n", "utf-8");
 }
