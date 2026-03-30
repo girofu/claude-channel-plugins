@@ -1,4 +1,5 @@
-import { mkdir, rename, chmod } from "node:fs/promises";
+import { mkdir, rename, chmod, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -14,17 +15,23 @@ DISCORD_STATE_DIR=~/.claude/channels/${profileName} \\
 
 /**
  * 產生啟動所有 bot 的腳本內容
+ * 在 macOS 上為每個 bot 開啟獨立的 Terminal 視窗
  */
 export function generateStartAllScript(profileNames: string[], scriptsDir: string): string {
   const botLines = profileNames
-    .map((name) => `  bash "${scriptsDir}/start-${name}.sh" &`)
+    .map(
+      (name) =>
+        `osascript -e "tell application \\"Terminal\\" to do script \\"bash '$SCRIPTS_DIR/start-${name}.sh'\\""`
+    )
     .join("\n");
 
   return `#!/bin/bash
-# 在背景啟動所有 bot
+# 為每個 bot 開啟獨立的 Terminal 視窗
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
+
 ${botLines}
-echo "所有 bot 已啟動"
-wait
+
+echo "已為每個 bot 開啟獨立的 Terminal 視窗"
 `;
 }
 
@@ -39,14 +46,14 @@ export async function writeAllScripts(profileNames: string[], scriptsDir: string
   for (const profileName of profileNames) {
     const filePath = join(scriptsDir, `start-${profileName}.sh`);
     await backupIfExists(filePath);
-    await Bun.write(filePath, generateStartScript(profileName));
+    await writeFile(filePath, generateStartScript(profileName), "utf-8");
     await chmod(filePath, 0o755);
   }
 
   // 建立啟動所有 bot 的腳本
   const startAllPath = join(scriptsDir, "start-all.sh");
   await backupIfExists(startAllPath);
-  await Bun.write(startAllPath, generateStartAllScript(profileNames, scriptsDir));
+  await writeFile(startAllPath, generateStartAllScript(profileNames, scriptsDir), "utf-8");
   await chmod(startAllPath, 0o755);
 }
 
@@ -55,9 +62,7 @@ export async function writeAllScripts(profileNames: string[], scriptsDir: string
  */
 async function backupIfExists(filePath: string): Promise<void> {
   try {
-    const file = Bun.file(filePath);
-    const exists = await file.exists();
-    if (exists) {
+    if (existsSync(filePath)) {
       await rename(filePath, `${filePath}.bak`);
     }
   } catch {
