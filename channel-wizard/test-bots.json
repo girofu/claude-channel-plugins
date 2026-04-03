@@ -1,0 +1,10 @@
+{
+  "bots": [
+    {
+      "token": "fake-token-for-testing-12345",
+      "channels": ["1001", "1002"],
+      "requireMention": true
+    }
+  ],
+  "globalAllowFrom": ["111222333"]
+}
