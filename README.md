@@ -2,7 +2,25 @@
 
 Marketplace for [Claude Code](https://code.claude.com) channel plugins — setup wizards, access management, and verification tools for Discord (Telegram coming soon).
 
-## Install
+## Quick Start: Setup Wizard CLI
+
+The fastest way to configure multiple Discord bots at once:
+
+```bash
+npx claude-channel-wizard
+```
+
+Or batch import from a JSON file:
+
+```bash
+npx claude-channel-wizard --import bots.json
+```
+
+See [channel-wizard/README.md](channel-wizard/README.md) for full documentation.
+
+---
+
+## Plugin Install
 
 ```bash
 # Add the marketplace
@@ -88,6 +106,12 @@ DISCORD_STATE_DIR=~/.claude/channels/discord-backend \
   claude --channels plugin:discord@claude-plugins-official
 ```
 
+Or use the generated `start-all.sh` to open each bot in its own Terminal window:
+
+```bash
+bash ~/.claude/channels/scripts/start-all.sh
+```
+
 ## Discord Permissions
 
 The invite URL includes exactly these permissions:
@@ -107,6 +131,10 @@ The invite URL includes exactly these permissions:
 ```
 ├── .claude-plugin/
 │   └── marketplace.json         # Marketplace registry
+├── channel-wizard/              # Batch setup CLI (npx claude-channel-wizard)
+│   ├── src/                     # TypeScript source
+│   ├── tests/                   # Test suite
+│   └── package.json
 └── plugins/
     └── channel-setup/
         ├── .claude-plugin/
