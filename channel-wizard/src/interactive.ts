@@ -544,15 +544,14 @@ async function step5_generate(state: WizardState): Promise<StepResult> {
       "建立的檔案：",
       ...createdFiles.map((f) => `  ${f}`),
       "",
-      "啟動指令：",
-      ...state.bots.flatMap((b) => [
-        `  DISCORD_STATE_DIR=~/.claude/channels/${b.profileName} \\`,
-        `    claude --channels plugin:discord@claude-plugins-official \\`,
-        `    --dangerously-skip-permissions`,
-        "",
+      ...state.bots.flatMap((b, i) => [
+        `[${b.botName}] 啟動指令：`,
+        `  bash ${join(scriptsDir, `start-${b.profileName}.sh`)}`,
+        ...(i < state.bots.length - 1 ? [""] : []),
       ]),
       "",
-      `一鍵啟動全部：bash ${startAllPath}`,
+      `一鍵啟動全部（每個 bot 開獨立 Terminal）：`,
+      `  bash ${startAllPath}`,
     ].join("\n"),
     "完成摘要"
   );

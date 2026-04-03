@@ -41,32 +41,38 @@ describe("generateStartAllScript", () => {
     expect(script).toContain("#!/bin/bash");
   });
 
-  it("includes all profile start scripts in background", () => {
+  it("uses osascript to open separate Terminal windows", () => {
     const script = generateStartAllScript(["bot1", "bot2"], "/home/user/scripts");
-    expect(script).toContain('bash "/home/user/scripts/start-bot1.sh" &');
-    expect(script).toContain('bash "/home/user/scripts/start-bot2.sh" &');
+    expect(script).toContain("osascript");
+    expect(script).toContain('tell application \\"Terminal\\"');
+  });
+
+  it("includes all profile start scripts via osascript", () => {
+    const script = generateStartAllScript(["bot1", "bot2"], "/home/user/scripts");
+    expect(script).toContain("start-bot1.sh");
+    expect(script).toContain("start-bot2.sh");
+  });
+
+  it("resolves scripts dir dynamically", () => {
+    const script = generateStartAllScript(["bot1"], "/home/user/scripts");
+    expect(script).toContain('SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"');
   });
 
   it("includes completion echo message", () => {
     const script = generateStartAllScript(["bot1"], "/home/user/scripts");
-    expect(script).toContain("所有 bot 已啟動");
-  });
-
-  it("includes wait command", () => {
-    const script = generateStartAllScript(["bot1"], "/home/user/scripts");
-    expect(script).toContain("wait");
+    expect(script).toContain("已為每個 bot 開啟獨立的 Terminal 視窗");
   });
 
   it("works with single profile", () => {
     const script = generateStartAllScript(["only-bot"], "/tmp/scripts");
-    expect(script).toContain('bash "/tmp/scripts/start-only-bot.sh" &');
+    expect(script).toContain("start-only-bot.sh");
   });
 
   it("works with multiple profiles", () => {
     const script = generateStartAllScript(["alpha", "beta", "gamma"], "/scripts");
-    expect(script).toContain('bash "/scripts/start-alpha.sh" &');
-    expect(script).toContain('bash "/scripts/start-beta.sh" &');
-    expect(script).toContain('bash "/scripts/start-gamma.sh" &');
+    expect(script).toContain("start-alpha.sh");
+    expect(script).toContain("start-beta.sh");
+    expect(script).toContain("start-gamma.sh");
   });
 });
 
@@ -112,14 +118,15 @@ describe("writeAllScripts", () => {
     expect(allStat.isFile()).toBe(true);
   });
 
-  it("start-all.sh has correct content", async () => {
+  it("start-all.sh has correct content with osascript", async () => {
     const scriptsDir = join(tmpDir, "scripts");
     await writeAllScripts(["bot1", "bot2"], scriptsDir);
     const content = await readFile(join(scriptsDir, "start-all.sh"), "utf-8");
     expect(content).toContain("#!/bin/bash");
-    expect(content).toContain(`bash "${scriptsDir}/start-bot1.sh" &`);
-    expect(content).toContain(`bash "${scriptsDir}/start-bot2.sh" &`);
-    expect(content).toContain("所有 bot 已啟動");
+    expect(content).toContain("osascript");
+    expect(content).toContain("start-bot1.sh");
+    expect(content).toContain("start-bot2.sh");
+    expect(content).toContain("已為每個 bot 開啟獨立的 Terminal 視窗");
   });
 
   it("individual scripts have 755 permissions", async () => {

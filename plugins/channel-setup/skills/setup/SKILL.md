@@ -25,7 +25,8 @@ allowed-tools:
 # /channel-setup:setup — Channel Setup Wizard
 
 You are guiding the user through setting up a Discord channel for Claude Code.
-Follow these phases in order. At each step, explain what you're doing and ask for input.
+Follow these phases in order. At each step, explain what you're doing and present numbered options.
+**Rule**: Always use numbered options for user choices. Only use open-ended questions when free-text input is required (e.g., token, profile name, user IDs).
 
 **Important**: All file operations use Read/Write tools directly. All API calls use Bash(curl).
 Never call external scripts.
@@ -54,15 +55,40 @@ Never call external scripts.
    ```
    Remember: Darwin = macOS (`open`), Linux = (`xdg-open`), other = show URL only.
 
-4. Ask the user:
-   > "Create a separate profile? (for multi-bot / multi-session setups)"
-   - **No** (default): use `~/.claude/channels/discord/`
-   - **Yes**: ask for profile name (only `[a-z0-9-]` allowed), use `~/.claude/channels/discord-<profile>/`
+4. Ask the user about profile selection. Display the following:
+
+   > **Profile 選擇**
+   >
+   > Profile 是一組獨立的 bot 設定（token + 頻道 + 權限）。
+   > 每個 profile 對應一個 Discord bot，可以同時運行多個。
+   >
+   > 請選擇：
+   > 1. **使用預設 profile**（推薦，適合只有一個 bot）
+   >    → 設定存放在 `~/.claude/channels/discord/`
+   > 2. **建立新的具名 profile**（適合多個 bot 或多個用途）
+   >    → 需要提供名稱，例如 `frontend`、`team-bot`
+   >    → 設定存放在 `~/.claude/channels/discord-<名稱>/`
+
+   If existing profiles were found in step 1, also show:
+   > 3. **修改現有 profile** → 列出已有的 profile 名稱讓使用者選擇
+
+   Wait for the user to reply with a number (1/2/3) or a profile name.
+   - **1** or "no" or "預設": use `~/.claude/channels/discord/`
+   - **2** or "yes": ask for profile name (only `[a-z0-9-]` allowed), use `~/.claude/channels/discord-<profile>/`
+   - **3** or a profile name: use the selected existing profile directory
 
 5. Check the target directory for existing config:
-   - Has `.env` + `access.json` → show summary, ask: modify or start fresh?
+   - Has `.env` + `access.json` → show summary, then display:
+     > **已有設定，請選擇：**
+     > 1. **修改現有設定** — 保留 token，重新設定頻道與權限
+     > 2. **從頭開始** — 清除所有設定，重新輸入 token
+     > 3. **取消** — 不做任何變更
    - Has `.env` but no `access.json` → resume from Phase 3 (token already saved)
-   - Has `.env` + `access.json` + tool permissions → show status, ask: modify?
+   - Has `.env` + `access.json` + tool permissions → show status, then display:
+     > **設定已完成，請選擇：**
+     > 1. **修改設定** — 重新設定頻道與權限
+     > 2. **查看啟動指令** — 跳到 Phase 5 顯示啟動方式
+     > 3. **取消** — 不做任何變更
    - Empty → proceed to Phase 2
 
 ---
@@ -90,7 +116,10 @@ Parse the response:
 - **200**: Parse JSON body → extract `id`, `username`, `discriminator`. Show:
   > "✅ Token verified (bot: username#discriminator, ID: 123456)"
   Save the bot ID for later use.
-- **401**: "❌ Token invalid. Please check and try again." Ask to re-enter.
+- **401**: Display:
+  > ❌ Token 無效，請選擇：
+  > 1. **重新輸入 token**
+  > 2. **取消設定**
 - **429**: "⚠️ Rate limited by Discord. Waiting..." Read `Retry-After` header, wait, retry once.
 - **Other / non-JSON response**: "❌ Unexpected response from Discord API. Check your network."
 
@@ -142,7 +171,12 @@ Display the URL and **automatically open the browser** (no asking):
 
 Also display the URL as text so the user can copy it if the browser didn't open.
 
-Ask: "Has the bot joined your server?"
+Display:
+> **Bot 邀請完成了嗎？**
+> 1. **已加入** — 繼續設定
+> 2. **遇到問題** — 顯示疑難排解
+
+If user selects 2, show common issues (permissions, OAuth2 scope) and re-display the invite URL.
 
 ### 3b. Select Server
 
@@ -156,10 +190,12 @@ Parse the JSON array. Display as a numbered list:
 2. Test Server (ID: 987654321)
 ```
 
-- If empty: "❌ Bot hasn't joined any server. Please use the invite URL above."
-- If 403: "❌ Bot lacks permissions. Please re-invite with the URL above."
+- If empty: "❌ Bot 尚未加入任何伺服器，請使用上方的邀請連結。"
+- If 403: "❌ Bot 權限不足，請使用上方的邀請連結重新邀請。"
+- If only 1 server: auto-select it, show confirmation:
+  > 偵測到唯一伺服器：**ServerName**，自動選取。
 
-Ask the user to pick a server (by number).
+Display: "請輸入伺服器編號："
 
 ### 3c. Select Channels
 
@@ -178,25 +214,33 @@ Parse the JSON array:
   3. #bot-commands    [Bot]
   ```
 
-Ask: "Select channels to enable (comma-separated numbers, e.g. 1,3):"
+Display: "請輸入要啟用的頻道編號（多個用逗號分隔，例如 `1,3`）："
 
-- If user selects 0 channels: ask "Use DM-only mode? (bot only responds to direct messages)"
 - Deduplicate selected channel IDs
+- If user selects 0 channels, display:
+  > **未選擇任何頻道，請選擇模式：**
+  > 1. **僅 DM 模式** — bot 只回應私訊
+  > 2. **重新選擇頻道**
 
 ### 3d. Mention Setting
 
-Ask: "Require @mention to respond? (recommended for shared channels)"
-- Default: Yes
+Display:
+> **@mention 設定**（在共用頻道中建議開啟）
+> 1. **需要 @mention 才回應**（推薦）
+> 2. **所有訊息都回應**
 
 ### 3e. DM Access Policy
 
-Ask: "How should the bot handle DMs?"
-- **A) Pairing mode** (default) — unknown senders get a 6-char pairing code
-- **B) Enter User ID directly** — for advanced users (switch to allowlist mode)
-  - Show hint: "Discord: Settings → Advanced → Developer Mode → right-click name → Copy User ID"
-  - Accept comma-separated IDs (must be numeric)
-- **C) Disable DMs** — bot only responds in server channels (set dmPolicy to "disabled")
-- **D) Skip** — keep pairing default
+Display:
+> **DM 存取策略**
+> 1. **配對模式**（推薦）— 未知使用者會收到 6 碼配對碼，你在終端確認後才能對話
+> 2. **直接輸入 User ID** — 進階用戶，直接指定允許的 Discord User ID
+> 3. **停用 DM** — bot 只在伺服器頻道中回應
+> 4. **跳過** — 使用預設（配對模式）
+
+If user selects 2:
+- Show hint: "Discord: 設定 → 進階 → 開發者模式 → 右鍵點擊使用者名稱 → 複製 User ID"
+- Ask for comma-separated IDs (must be numeric)
 
 ### 3f. Write access.json
 
