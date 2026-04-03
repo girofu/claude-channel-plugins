@@ -1,0 +1,29 @@
+{
+  "name": "claude-channel-wizard",
+  "version": "1.0.0",
+  "description": "Discord Bot 批次設定精靈 — 一行指令完成多 bot、多 channel 設定",
+  "module": "index.ts",
+  "type": "module",
+  "bin": {
+    "claude-channel-wizard": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "bun build ./src/index.ts --target=node --outfile=dist/cli.js",
+    "prepublishOnly": "bun run build",
+    "test": "bun test"
+  },
+  "keywords": ["discord", "claude", "channel", "setup", "wizard", "bot"],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "^1.3.11",
+    "typescript": "^6.0.2"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.1.0",
+    "commander": "^14.0.3"
+  }
+}
