@@ -1,6 +1,6 @@
 {
   "name": "claude-channel-wizard",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Discord Bot 批次設定精靈 — 一行指令完成多 bot、多 channel 設定",
   "module": "index.ts",
   "type": "module",

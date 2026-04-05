@@ -9,6 +9,7 @@ import { writeAllScripts } from "./script-generator";
 import { updateSettingsJson } from "./permissions";
 import { parseBatchFile, resolveBatchConfig } from "./batch";
 import { runInteractive } from "./interactive";
+import { runAddUser } from "./add-user";
 import type { BatchImportSchema, ToolPermission } from "./types";
 
 const program = new Command();
@@ -19,6 +20,25 @@ program
   .version("1.0.0")
   .option("--import <file>", "從 JSON 檔案批次匯入")
   .option("--yes", "跳過確認（僅 --import）");
+
+program
+  .command("add-user [userIds...]")
+  .description("直接為 bot 新增允許命令的 Discord User ID")
+  .option("--profile <name>", "指定要修改的 profile 名稱")
+  .option("--all-profiles", "套用到所有 profile")
+  .option("--groups", "同時新增到所有頻道群組的 allowFrom")
+  .action(
+    async (
+      userIds: string[],
+      opts: { profile?: string; allProfiles?: boolean; groups?: boolean }
+    ) => {
+      await runAddUser(userIds, {
+        profile: opts.profile,
+        allProfiles: opts.allProfiles,
+        groups: opts.groups,
+      });
+    }
+  );
 
 program.action(async (options: { import?: string; yes?: boolean }) => {
   if (options.import) {

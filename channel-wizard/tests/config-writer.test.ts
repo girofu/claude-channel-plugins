@@ -6,6 +6,7 @@ import {
   writeEnvFile,
   writeAccessJson,
   writeBotConfig,
+  addUsersToProfile,
 } from "../src/config-writer";
 import type { AccessJson } from "../src/types";
 
@@ -152,5 +153,99 @@ describe("writeBotConfig", () => {
       requireMention: false,
       allowFrom: ["everyone"],
     });
+  });
+});
+
+describe("addUsersToProfile", () => {
+  it("adds new users to allowFrom", async () => {
+    const profileDir = join(tempDir, "add-user-profile");
+    await writeBotConfig({
+      profileDir,
+      token: "tok",
+      botId: "111",
+      channelIds: ["ch1"],
+      allowFrom: ["alice"],
+      requireMention: true,
+    });
+
+    const result = await addUsersToProfile(profileDir, ["bob", "carol"], false);
+
+    expect(result.added).toEqual(["bob", "carol"]);
+    expect(result.alreadyPresent).toEqual([]);
+
+    const raw = await readFile(join(profileDir, "access.json"), "utf-8");
+    const parsed: AccessJson = JSON.parse(raw);
+    expect(parsed.allowFrom).toContain("alice");
+    expect(parsed.allowFrom).toContain("bob");
+    expect(parsed.allowFrom).toContain("carol");
+  });
+
+  it("reports already present users without duplicating", async () => {
+    const profileDir = join(tempDir, "add-user-dup");
+    await writeBotConfig({
+      profileDir,
+      token: "tok",
+      botId: "111",
+      channelIds: ["ch1"],
+      allowFrom: ["alice"],
+      requireMention: true,
+    });
+
+    const result = await addUsersToProfile(profileDir, ["alice", "bob"], false);
+
+    expect(result.added).toEqual(["bob"]);
+    expect(result.alreadyPresent).toEqual(["alice"]);
+
+    const raw = await readFile(join(profileDir, "access.json"), "utf-8");
+    const parsed: AccessJson = JSON.parse(raw);
+    // alice must not be duplicated
+    expect(parsed.allowFrom.filter((id) => id === "alice")).toHaveLength(1);
+  });
+
+  it("syncs users to groups when applyToGroups=true", async () => {
+    const profileDir = join(tempDir, "add-user-groups");
+    await writeBotConfig({
+      profileDir,
+      token: "tok",
+      botId: "111",
+      channelIds: ["ch1", "ch2"],
+      allowFrom: ["alice"],
+      requireMention: true,
+    });
+
+    await addUsersToProfile(profileDir, ["bob"], true);
+
+    const raw = await readFile(join(profileDir, "access.json"), "utf-8");
+    const parsed: AccessJson = JSON.parse(raw);
+
+    expect(parsed.groups["ch1"].allowFrom).toContain("bob");
+    expect(parsed.groups["ch2"].allowFrom).toContain("bob");
+  });
+
+  it("does not sync users to groups when applyToGroups=false", async () => {
+    const profileDir = join(tempDir, "add-user-nogroups");
+    await writeBotConfig({
+      profileDir,
+      token: "tok",
+      botId: "111",
+      channelIds: ["ch1"],
+      allowFrom: ["alice"],
+      requireMention: true,
+    });
+
+    await addUsersToProfile(profileDir, ["bob"], false);
+
+    const raw = await readFile(join(profileDir, "access.json"), "utf-8");
+    const parsed: AccessJson = JSON.parse(raw);
+
+    expect(parsed.groups["ch1"].allowFrom).not.toContain("bob");
+    expect(parsed.allowFrom).toContain("bob");
+  });
+
+  it("throws if access.json does not exist", async () => {
+    const profileDir = join(tempDir, "nonexistent-profile");
+    await expect(
+      addUsersToProfile(profileDir, ["alice"], false)
+    ).rejects.toThrow("找不到");
   });
 });

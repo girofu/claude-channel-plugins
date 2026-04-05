@@ -1,4 +1,4 @@
-import { mkdir, writeFile, chmod } from "fs/promises";
+import { mkdir, writeFile, readFile, chmod } from "fs/promises";
 import { join } from "path";
 import type { AccessJson } from "./types";
 
@@ -28,6 +28,55 @@ export interface WriteBotConfigOptions {
   channelIds: string[];
   allowFrom: string[];
   requireMention: boolean;
+}
+
+export interface AddUsersResult {
+  added: string[];
+  alreadyPresent: string[];
+}
+
+export async function addUsersToProfile(
+  profileDir: string,
+  userIds: string[],
+  applyToGroups: boolean
+): Promise<AddUsersResult> {
+  const jsonPath = join(profileDir, "access.json");
+  let accessJson: AccessJson;
+
+  try {
+    const raw = await readFile(jsonPath, "utf-8");
+    accessJson = JSON.parse(raw) as AccessJson;
+  } catch {
+    throw new Error(`找不到 ${jsonPath}，請先執行設定精靈`);
+  }
+
+  const existing = new Set(accessJson.allowFrom ?? []);
+  const added: string[] = [];
+  const alreadyPresent: string[] = [];
+
+  for (const id of userIds) {
+    if (existing.has(id)) {
+      alreadyPresent.push(id);
+    } else {
+      existing.add(id);
+      added.push(id);
+    }
+  }
+
+  accessJson.allowFrom = Array.from(existing);
+
+  if (applyToGroups && accessJson.groups) {
+    for (const group of Object.values(accessJson.groups)) {
+      const groupSet = new Set(group.allowFrom ?? []);
+      for (const id of userIds) {
+        groupSet.add(id);
+      }
+      group.allowFrom = Array.from(groupSet);
+    }
+  }
+
+  await writeAccessJson(profileDir, accessJson);
+  return { added, alreadyPresent };
 }
 
 export async function writeBotConfig(

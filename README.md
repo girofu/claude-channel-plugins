@@ -16,6 +16,13 @@ Or batch import from a JSON file:
 npx claude-channel-wizard --import bots.json
 ```
 
+Or directly add a user who can command a bot (without re-running the full wizard):
+
+```bash
+npx claude-channel-wizard add-user 123456789
+npx claude-channel-wizard add-user 123456789 --profile discord-mybot --groups
+```
+
 See [channel-wizard/README.md](channel-wizard/README.md) for full documentation.
 
 ---
