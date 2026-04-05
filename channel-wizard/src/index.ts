@@ -10,6 +10,7 @@ import { updateSettingsJson } from "./permissions";
 import { parseBatchFile, resolveBatchConfig } from "./batch";
 import { runInteractive } from "./interactive";
 import { runAddUser } from "./add-user";
+import { runStart } from "./start-bot";
 import type { BatchImportSchema, ToolPermission } from "./types";
 
 const program = new Command();
@@ -20,6 +21,13 @@ program
   .version("1.0.0")
   .option("--import <file>", "從 JSON 檔案批次匯入")
   .option("--yes", "跳過確認（僅 --import）");
+
+program
+  .command("start [profile]")
+  .description("選擇已設定的 Bot 並直接啟動")
+  .action(async (profile: string | undefined) => {
+    await runStart(profile);
+  });
 
 program
   .command("add-user [userIds...]")

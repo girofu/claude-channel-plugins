@@ -1,5 +1,7 @@
 # claude-channel-plugins
 
+> **This repo contains two complementary tools:** the `channel-setup` plugin (Claude Code skills) and the `claude-channel-wizard` CLI (npx setup wizard). They share configuration and are designed to be used together.
+
 Marketplace for [Claude Code](https://code.claude.com) channel plugins — setup wizards, access management, and verification tools for Discord (Telegram coming soon).
 
 ## Quick Start: Setup Wizard CLI
@@ -14,6 +16,12 @@ Or batch import from a JSON file:
 
 ```bash
 npx claude-channel-wizard --import bots.json
+```
+
+Or pick and launch a configured bot without memorizing commands:
+
+```bash
+npx claude-channel-wizard start
 ```
 
 Or directly add a user who can command a bot (without re-running the full wizard):

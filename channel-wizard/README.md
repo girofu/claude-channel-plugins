@@ -55,6 +55,22 @@ npx claude-channel-wizard --import bots.json --yes  # 跳過確認
 
 `channels` 欄位支援 `["*"]`（全部頻道）或指定 channel ID 陣列。
 
+### start — 互動選擇並啟動 Bot
+
+不用記指令、不用指定資料夾，直接選一個 bot 啟動：
+
+```bash
+# 互動式選擇（有多個 bot 時顯示選單）
+npx claude-channel-wizard start
+
+# 直接指定 profile 名稱
+npx claude-channel-wizard start discord-mybot
+```
+
+會自動掃描 `~/.claude/channels/` 下所有已設定的 bot，選完後直接執行對應的 `claude --channels` 指令。
+
+---
+
 ### add-user — 直接新增允許使用者
 
 為已設定好的 bot 快速新增可以命令它的 Discord User ID，無需重跑完整精靈。
