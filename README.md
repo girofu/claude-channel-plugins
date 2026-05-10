@@ -1,5 +1,9 @@
 # claude-channel-plugins
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/girofu/claude-channel-plugins?style=flat-square)](https://github.com/girofu/claude-channel-plugins/stargazers)
+[![GitHub last commit](https://img.shields.io/github/last-commit/girofu/claude-channel-plugins?style=flat-square)](https://github.com/girofu/claude-channel-plugins/commits)
+
 > **This repo contains two complementary tools:** the `channel-setup` plugin (Claude Code skills) and the `claude-channel-wizard` CLI (npx setup wizard). They share configuration and are designed to be used together.
 
 Marketplace for [Claude Code](https://code.claude.com) channel plugins — setup wizards, access management, and verification tools for Discord (Telegram coming soon).
@@ -167,6 +171,12 @@ The invite URL includes exactly these permissions:
 - [Claude Code Channels Documentation](https://code.claude.com/docs/en/channels)
 - [Claude Code Channels Reference](https://code.claude.com/docs/en/channels-reference)
 - [Official Channel Plugins](https://github.com/anthropics/claude-plugins-official)
+
+## Author
+
+Built by [**girofu**](https://github.com/girofu) — AI engineering portfolio at [github.com/girofu](https://github.com/girofu).
+
+For private portfolio walkthroughs or contracting inquiries: [girofu@gmail.com](mailto:girofu@gmail.com)
 
 ## License
 
